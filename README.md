@@ -3,206 +3,104 @@
 [![CI](https://github.com/andrebras/herdr-trailhead/actions/workflows/ci.yml/badge.svg)](https://github.com/andrebras/herdr-trailhead/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-A project picker for the [Herdr](https://herdr.dev) desktop app: press Cmd+O, type a few letters of a project, press Enter, and you are in it.
+A project picker for the [Herdr](https://herdr.dev) desktop app. Press Cmd+O, type a few letters, press Enter: you are in that project's space, or a new one.
 
-Trailhead is a mod, a small plugin that runs inside Herdr. In Herdr, a "space" is a place to work: a set of tabs that hold terminals and coding agents, listed in the sidebar. A project's space is one that was made in the project's folder, or that has a terminal in it. Trailhead goes to that space when one is open, and makes a new space in the project's folder when none is.
+![Trailhead's popup: a search field over a list of projects. Open spaces have a status dot, and each row shows its kind (repo, worktree or folder) and how long ago it last changed. The previous project, acme-web, is first and selected.](preview.png)
 
-## Contents
+## Why Trailhead
 
-- [What it does](#what-it-does)
-- [Install](#install)
-- [Usage](#usage)
-- [Settings](#settings)
-- [Privacy and permissions](#privacy-and-permissions)
-- [Roadmap](#roadmap)
-- [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
+- **It finds your projects.** Git repos and worktrees under your code folders, with nothing else to install. [zoxide](https://github.com/ajeetdsouza/zoxide) is optional and only sharpens the order.
+- **Enter never closes anything.** It goes to the project's open space, or makes one in its folder.
+- **Cmd+O, Enter jumps back.** With nothing typed, the project you were in before is selected.
+- **Cmd+Enter starts your agent there:** `claude`, unless you choose another.
 
-## What it does
+Each row shows its space's agent status, its kind and its last change. Projects on the other machines Herdr is connected to are listed too.
 
-Trailhead opens a popup with a search field and a list of projects. A project is a git repository (a "repo") that Trailhead finds under your folders, or a folder you list yourself.
-
-Rows look like this:
-
-```text
-●  acme-web          repo       2h
-●  notes             folder
-   acme-web/login    worktree   3d
-   work/api          repo       5d
-   home/api          repo       2w
-```
-
-From left to right, a row shows:
-
-- **A status dot**, on projects that have an open space. Its colour is the status of the agents in that space, in Herdr's own colours: working, blocked, done or idle. A space with no agent status shows the accent colour.
-- **The name**: the space's name, or the project folder's name. A worktree is named after its repository too (`acme-web/login`). When two projects have the same folder name, each shows as much of its path as tells them apart (`work/api`, `home/api`). The letters that match what you typed are highlighted.
-- **The kind**: `repo` (a git repository), `worktree` (a git worktree: a second checkout of a repository, in its own folder, usually on another branch) or `folder` (a folder you listed in the settings). An open space that is not one of your projects shows no kind.
-- **The last change**: how long ago the project last changed, as `now`, `5m`, `3h`, `2d`, `3w`, `4mo` or `2y`. Trailhead reads this from git's reflog, the log git keeps in each repository of every commit, checkout and pull. Rows without git show nothing here.
-
-With nothing typed, the list is ordered so you can jump back and forth:
-
-1. The project you were in before this one, selected, so Cmd+O then Enter takes you back. Do it again and you are back where you started.
-2. Your other open spaces, in the sidebar's order.
-3. The other projects you picked recently, newest first.
-4. The rest, most recently changed first. Projects with no known change come last, by name.
-5. The space you are in now, at the bottom.
-
-Trailhead remembers the space you are in each time it opens, so "before" includes spaces you reached from the sidebar. The order is worked out again once the change times are read, and your selection stays on the same row.
-
-When you type, Trailhead matches your letters fuzzily. A name that starts with what you typed comes first. Then a name that contains it. Then a name that has your letters in the same order with others in between (`aw` finds `acme-web`). Last come matches in the path. Among similar matches, open spaces and recent picks come first. The list shows the best 12 rows.
-
-You can also type a path, such as `~/code/acme-web`. The folder you typed comes first, then the projects inside it.
-
-Trailhead never creates folders and never closes a space. It only lists the spaces on this computer.
+[herdr-app-navigator](https://github.com/alizdavoodi/herdr-app-navigator) lists zoxide's folders, so it needs zoxide on each machine you want listed. [project-finder](https://github.com/mike-bronner/herdr-plugin-project-finder) makes Enter apply a set of ticks, which also closes the spaces you untick.
 
 ## Install
 
-You need the Herdr desktop app. Herdr keeps its files in `~/.config/herdr-app`, or in the folder named by `HERDR_APP_HOME` if you set it. Use that folder wherever this guide says `~/.config/herdr-app`.
-
-### With your agent
-
-Herdr lets the coding agents you run in it install mods. Give your agent this line:
+Give the coding agent you run in Herdr this line:
 
 ```text
 Read ~/.config/herdr-app/AGENTS.md, then add this mod: https://github.com/andrebras/herdr-trailhead
 ```
 
-Herdr's guide tells the agent to read every file first, copy the mod folder, merge the key binding into your `keys.json` (asking before it replaces a key you already use), and check that the mod loads.
+Or by hand:
 
-### By hand
+```sh
+git clone https://github.com/andrebras/herdr-trailhead.git
+cp -R herdr-trailhead/mods/trailhead ~/.config/herdr-app/mods/
+herdr-app check ~/.config/herdr-app/mods/trailhead
+```
 
-1. Make sure `~/.config/herdr-app/mods/trailhead` does not exist yet.
-2. Copy the mod into Herdr's folder:
+Then bind a key in the `global` section of `~/.config/herdr-app/keys.json`. Herdr's default keys leave both of these free:
 
-   ```sh
-   git clone https://github.com/andrebras/herdr-trailhead.git
-   cp -R herdr-trailhead/mods/trailhead ~/.config/herdr-app/mods/trailhead
-   ```
+```text
+"cmd-o": "mod.open:trailhead"        macOS
+"ctrl-alt-o": "mod.open:trailhead"   Linux and Windows
+```
 
-   Keep the folder name `trailhead`: the mod finds its own icon by that name.
+Herdr's command palette has it too, as "Open a project". If you set `HERDR_APP_HOME`, use that folder instead of `~/.config/herdr-app`. To update, replace `mods/trailhead` with a fresh copy.
 
-3. Check that it loads:
+## Keys
 
-   ```sh
-   herdr-app check ~/.config/herdr-app/mods/trailhead
-   ```
+| Key                                     | What it does                                               |
+| --------------------------------------- | ---------------------------------------------------------- |
+| Enter, or a click                       | Go to the project's space, or make one in its folder       |
+| Alt+Enter or Shift+Enter                | Make a new space there, even if one is open                |
+| Cmd+Enter (Ctrl+Enter on Linux/Windows) | Go there and start your agent, in a new tab or a new space |
+| ↑ ↓, Ctrl+P / Ctrl+N                    | Move the selection                                         |
+| Type a path, such as `~/code/app`       | List that folder first, so Enter opens a space there       |
+| Esc                                     | Close                                                      |
 
-   It prints `check passed:` followed by the mod's path.
-
-4. Bind a key to it. This repository's `keys.json` holds one binding. Add it to the `global` section of `~/.config/herdr-app/keys.json`:
-
-   ```json
-   "cmd-o": "mod.open:trailhead"
-   ```
-
-   Herdr's default keys leave Cmd+O free on macOS. If you already bound it to something else, replace that line or give Trailhead another key.
-
-   On Linux and Windows, use a key with Ctrl instead, such as `"ctrl-alt-o"`, which Herdr's default keys leave free.
-
-> [!NOTE]
-> Herdr upgrades your `keys.json` to new default shortcuts only while you have never edited it. Once you edit it, add new default shortcuts from Herdr updates by hand.
-
-You can also open Trailhead from Herdr's command palette: search for `trailhead`. Its entry is titled "Open a project".
-
-To update Trailhead, delete `~/.config/herdr-app/mods/trailhead`, then copy the folder again as in step 2. To remove it, delete `~/.config/herdr-app/mods/trailhead` and its key binding.
-
-## Usage
-
-| Key                                         | What it does                                                                                        |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Cmd+O                                       | Opens Trailhead (with the binding above).                                                           |
-| Typing                                      | Filters the list.                                                                                   |
-| ↑ / ↓, Ctrl+P / Ctrl+N                      | Moves the selection. It wraps around at both ends.                                                  |
-| Enter, or a click                           | Goes to the project's space, or makes a new space in its folder, named after the folder.            |
-| Alt+Enter or Shift+Enter                    | Makes a new space in the project's folder, even if one is already open there.                       |
-| Cmd+Enter (Ctrl+Enter on Linux and Windows) | Goes to the project and starts your agent there: in a new tab of its open space, or in a new space. |
-| Esc                                         | Closes Trailhead.                                                                                   |
-
-To jump back to the project you were in before, press Cmd+O then Enter: with nothing typed, that project is the first row and already selected. Press them again to return. The bottom line of the popup lists these keys. To open any folder, type its path. It must start with `~`, `/`, or a drive such as `C:\`. Enter opens a space there. If the folder is in your home folder and does not exist, the row says "no such folder" and the popup stays open. Herdr only lets mods read inside your home folder, so a folder elsewhere opens without a check, and Herdr tells you if it is not there.
-
-When something is wrong, one red line at the top of the popup says what: a setting with a bad value (Trailhead uses the default instead), a root it can't read, or an agent program that isn't installed.
+The popup's bottom line shows these keys for your platform.
 
 ## Settings
 
-Put your settings in `trailhead.json` in Herdr's folder (`~/.config/herdr-app/trailhead.json`). The file is yours: it sits outside the mod's folder, so updating Trailhead never touches it. Every setting is optional; a missing one takes its default. Trailhead reads the file each time it opens, so a change shows the next time you open it. Settings it doesn't set are read from `projects.json` in Herdr's folder, if you have one from an earlier version.
+Settings live in `~/.config/herdr-app/trailhead.json`, outside the mod's folder, so updates never reset them. Every key is optional. Trailhead reads the file each time it opens.
 
 ```json
 {
-  "roots": ["~/code"],
+  "roots": ["~/code", "~/work"],
   "depth": 3,
   "folders": ["~/notes"],
-  "agent": ["claude"],
+  "agent": ["claude", "--continue"],
   "zoxide": "auto"
 }
 ```
 
-| Setting   | Default      | What it does                                                                                                                                                 |
-| --------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `roots`   | `["~/Lab"]`  | The folders searched for git repositories. A root itself is never listed, only the repositories under it.                                                    |
-| `depth`   | `3`          | How many folder levels below each root to search. A whole number from 1 to 6.                                                                                |
-| `folders` | `[]`         | Folders listed as they are, with the kind `folder`, git or not.                                                                                              |
-| `agent`   | `["claude"]` | The program Cmd+Enter starts, with its arguments, as a list.                                                                                                 |
-| `zoxide`  | `"auto"`     | `"auto"` uses [zoxide](https://github.com/ajeetdsouza/zoxide)'s ranking, when it is installed, to break ties between similar matches. `"off"` never runs it. |
+| Setting   | Default                   | What it does                                                               |
+| --------- | ------------------------- | -------------------------------------------------------------------------- |
+| `roots`   | the code folders you have | Folders searched for git repos and worktrees                               |
+| `depth`   | `3`                       | How many levels below each root to search, from 1 to 6                     |
+| `folders` | `[]`                      | Folders listed as they are, git or not                                     |
+| `agent`   | `["claude"]`              | What Cmd+Enter starts, as a list: `["codex"]`, `["~/bin/start-work"]`      |
+| `zoxide`  | `"auto"`                  | `"auto"` uses zoxide's ranking when it is installed; `"off"` never runs it |
 
-### Change the agent Cmd+Enter starts
+Without `roots`, Trailhead searches whichever of these exist: `~/code`, `~/projects`, `~/src`, `~/dev`, `~/Developer`, `~/work`, `~/git`, `~/repos` and `~/Lab` (and `~/Code`, `~/Projects`). A bad value, or a root you set that is missing or can't be read, shows as one red line at the top of the popup; a bad value falls back to its default.
 
-Set `agent` to the command you want, split into a list: the program first, then each argument. For example:
+## How it works
 
-- Codex: `"agent": ["codex"]`
-- Claude Code, continuing the last conversation: `"agent": ["claude", "--continue"]`
-- A shell script: `"agent": ["~/bin/start-work"]`
+- **Finding.** It walks each root up to `depth` levels. A folder with a `.git` folder is a repo; one with a `.git` file is a worktree. It skips hidden folders and `node_modules`, never looks inside a repo, and stops after 5,000 folders.
+- **Last change.** The time of the last entry in the repo's reflog: a commit, checkout or pull.
+- **Opening.** The list from last time draws in the first frame. Then the folders are read again, and rows update in place without moving your selection.
+- **Order.** With nothing typed: the previous project, your open spaces, recent picks, then the rest by last change, and the current space last. Typed: a fuzzy match on the name, then on the path, with open spaces, recent picks and zoxide breaking ties. It shows the best 12 rows.
+- **Other machines.** Through Herdr, it runs one small `sh` script on each connected machine, with the same roots and depth and a 2-second limit. Missing roots are skipped quietly there. Their rows show no age. They hide while the machine can't be reached, and leave the list when you remove it from Herdr.
 
-Trailhead checks that the program is installed (on the project's machine) before it opens anything. If it isn't, the red line at the top says so and the popup stays open.
+[RECIPE.md](RECIPE.md) has the full rules.
 
-While it searches, Trailhead:
+## What it reads and runs
 
-- skips hidden folders (names that start with `.`) and `node_modules`;
-- does not search inside a repository, so submodules and other repositories copied inside it are left out;
-- looks at no more than 5,000 folders, so a very large root cannot stall it.
+- **Reads:** `trailhead.json` (and `projects.json`, a legacy fallback) in Herdr's folder, the folder names under your roots, and the `.git` entries and reflogs of the repos it finds. Herdr lets mods read only inside your home folder.
+- **Runs:** `zoxide query -ls` once per open, when zoxide is installed. On Cmd+Enter, `command -v` (`where` on Windows) to check that the agent is installed. On each other machine, the `sh` script above.
+- **Asks Herdr to:** select a space, make a space or add a tab. Nothing else, and never to close anything.
+- **Stores:** your recent picks and the last list it found, in the mod's storage in Herdr's folder. It makes no network requests.
 
-## Other machines
+## More
 
-When Herdr is connected to other machines (`hc machine add`), Trailhead lists their projects too, with a Machine column that names where each project is (`local` for this computer). The column shows only while another machine is connected.
-
-Herdr doesn't let mods read another machine's folders, so Trailhead runs one small `find` script there through Herdr, using the same `roots` and `depth` (`~` means that machine's home folder). Each machine is searched at the same time as the others, with a 2-second limit, so a slow or offline machine never delays your local projects; the error line says when one didn't answer. A root that doesn't exist on a machine is skipped there without a message, since your folders often differ between machines; one that exists but can't be read is reported. Enter goes to the project's space on that machine, or makes one there. Rows from other machines show no age, because their git logs can't be read.
-
-The remote machine needs `sh` and `find`, which Linux and macOS have.
-
-## Privacy and permissions
-
-- **Files it reads:** `trailhead.json` and `projects.json` in Herdr's folder, the folder names under your roots, and the `.git` entries and reflogs of the repositories it finds. Herdr only lets mods read files inside your home folder. A root outside it can't be read, and the error line says so. A listed folder or typed path outside it is shown or opened without being checked.
-- **Programs it runs:** on each other machine Herdr is connected to, a `find` script that lists the git repositories under your roots (no file contents are read); `zoxide query -ls`, once per open, when zoxide is installed and the `zoxide` setting is not `"off"`; and on Cmd+Enter, a check that the agent program is installed (`command -v`, or `where` on Windows). Otherwise it asks Herdr to select a space (`space.select`), make one (`space.new`) or add a tab (`tab.new`), and nothing else.
-- **Network:** it makes no network requests.
-- **What it stores:** the last 50 projects you picked, so it can list them first, and the last list it found (names, paths, kinds and ages), so the next open shows it at once. Both are kept in the mod's local storage, which Herdr saves under `~/.config/herdr-app/data/trailhead/`.
-
-## Roadmap
-
-These are planned, not built yet:
-
-- A listing in the [Herdr mods gallery](https://herdr.dev/mods).
-
-## Development
-
-You need Node.js 22.13 or newer. The exact version is pinned in `.tool-versions`, which version managers such as asdf and mise read.
-
-```sh
-npm ci              # install the development tools
-npm test            # run the unit tests
-npm run lint        # check the code for common mistakes
-npm run format      # format the code (npm run format:check only checks it)
-npm run typecheck   # check the types
-bin/ci              # run every check
-```
-
-The unit tests cover the parts that do not need Herdr: matching and ordering (`mods/trailhead/match.js`) and path handling (`mods/trailhead/paths.js`).
-
-When Herdr is installed, `bin/ci` also runs `herdr-app check` on `mods/trailhead`. That check loads the mod in Herdr, with a temporary Herdr folder so your own setup is not touched. GitHub's CI (continuous integration: the checks that run on every pull request) cannot run it, because Herdr is not installed there. Run `bin/ci` on your own computer before you open a pull request.
-
-## Contributing
-
-Bug reports, ideas and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first. To report a security problem, follow [SECURITY.md](SECURITY.md).
-
-## License
-
-[Apache License 2.0](LICENSE).
+- [RECIPE.md](RECIPE.md): the brief to rebuild Trailhead from scratch.
+- [CHANGELOG.md](CHANGELOG.md): what changed in each version.
+- [CONTRIBUTING.md](CONTRIBUTING.md): set up, run the checks, send a change.
+- [SECURITY.md](SECURITY.md): report a vulnerability privately.
+- [Apache License 2.0](LICENSE).
