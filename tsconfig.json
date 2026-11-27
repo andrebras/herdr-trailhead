@@ -1,5 +1,5 @@
 {
-  "// why": "Type-checks the plain modules. main.js needs Herdr's generated type files (gpui-kit.d.ts, herdr.d.ts), which exist only where Herdr is installed, so bin/ci checks it locally with mods/trailhead/jsconfig.json.",
+  "// why": "Type-checks the modules that know nothing about Herdr, so it runs everywhere, GitHub's CI included. main.js needs the type files Herdr writes into its own folder, so tsconfig.herdr.json checks it where Herdr is installed (bin/typecheck-herdr).",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
@@ -18,6 +18,8 @@
     "mods/trailhead/actions.js",
     "mods/trailhead/remote.js",
     "mods/trailhead/keys.js",
-    "mods/trailhead/spaces.js"
+    "mods/trailhead/spaces.js",
+    "mods/trailhead/discover.js",
+    "mods/trailhead/recent.js"
   ]
 }
