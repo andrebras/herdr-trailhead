@@ -1,11 +1,12 @@
 // Matching that knows nothing about Herdr, so tests can run it under node.
 
 /**
- * A row in the list: a project, or a space that is open. `key` tells rows apart across
- * machines (the path on this computer); `lname` and `lpath` are the name and the shown path
- * in lowercase, worked out once when the list is built so a key press doesn't redo them.
- * @typedef {{ name: string, path: string, key?: string, lname?: string, lpath?: string,
- *   space?: { status?: string | null } }} Row
+ * A row in the list: a project, or a space that is open. `key` tells rows apart (see keys.js);
+ * `pkey` is the key of the project a space is in, so a pick of the project counts for its space
+ * too. `lname` and `lpath` are the name and the shown path in lowercase, worked out once when
+ * the list is built so a key press doesn't redo them.
+ * @typedef {{ name: string, path: string, key?: string, pkey?: string | null, lname?: string,
+ *   lpath?: string, space?: { status?: string | null } }} Row
  */
 
 /**
@@ -13,6 +14,19 @@
  * @param {Row} r
  */
 export const keyOf = (r) => r.key ?? r.path;
+
+/**
+ * How recently a row was picked: its own key's place in `at` (key → place, newest 0), else
+ * its project's, unless that is `skip`. Undefined when it wasn't picked.
+ * @param {Row} r
+ * @param {Map<string, number>} at
+ * @param {string | null} [skip]
+ */
+function recency(r, at, skip = null) {
+  const own = at.get(keyOf(r));
+  if (own !== undefined || !r.pkey || r.pkey === skip) return own;
+  return at.get(r.pkey);
+}
 
 // Higher is better, 0 is no match: the name starting with it, then containing it, then
 // its letters in order in the name or the path (a fuzzy match, as fzf does).
@@ -58,7 +72,7 @@ export function inOrder(f, text) {
  * @returns {R[]}
  */
 export function best(rows, f, shown, display, recent = [], zoxide = new Map()) {
-  const at = new Map(recent.map((p, i) => [p, i]));
+  const at = places(recent);
   /** @type {{ r: R, s: number, i: number }[]} */
   const hits = [];
   for (let i = 0; i < rows.length; i++) {
@@ -76,6 +90,7 @@ export function best(rows, f, shown, display, recent = [], zoxide = new Map()) {
 // 3. the other recent picks, newest first;
 // 4. the rest, most recently changed first; those with no known change last, by name;
 // 5. the current space, last (going to it would change nothing).
+// A pick of the current space's project doesn't count for its other spaces: you are there.
 /**
  * @template {Row & { touched?: number | null }} R
  * @param {R[]} rows
@@ -84,25 +99,29 @@ export function best(rows, f, shown, display, recent = [], zoxide = new Map()) {
  * @returns {R[]}
  */
 export function ordered(rows, recent, current = null) {
-  const keys = new Set(rows.map(keyOf));
   /** @type {Map<string, number>} */
   const pick = new Map();
   recent.forEach((k, i) => {
     if (k !== current && !pick.has(k)) pick.set(k, i);
   });
-  const previous = recent.find((k) => k !== current && keys.has(k)) ?? null;
-  const group = (/** @type {R} */ r) => {
-    const k = keyOf(r);
-    if (k === current) return 4;
-    if (k === previous) return 0;
-    if (r.space) return 1;
-    return pick.has(k) ? 2 : 3;
+  const here = rows.find((r) => keyOf(r) === current)?.pkey ?? null;
+  const ranked = rows.map((r, i) => ({ r, i, at: keyOf(r) === current ? undefined : recency(r, pick, here) }));
+  let previous = null;
+  let best = Infinity;
+  for (const x of ranked) {
+    if (x.at !== undefined && x.at < best) [previous, best] = [x, x.at];
+  }
+  const group = (/** @type {{ r: R, at: number | undefined }} */ x) => {
+    if (keyOf(x.r) === current) return 4;
+    if (x === previous) return 0;
+    if (x.r.space) return 1;
+    return x.at !== undefined ? 2 : 3;
   };
-  return rows
-    .map((r, i) => ({ r, i, g: group(r) }))
+  return ranked
+    .map((x) => ({ ...x, g: group(x) }))
     .sort((a, b) => {
       if (a.g !== b.g) return a.g - b.g;
-      if (a.g === 2) return (pick.get(keyOf(a.r)) ?? 0) - (pick.get(keyOf(b.r)) ?? 0);
+      if (a.g === 2) return (a.at ?? 0) - (b.at ?? 0);
       if (a.g === 3) {
         const ta = a.r.touched ?? null;
         const tb = b.r.touched ?? null;
@@ -124,10 +143,22 @@ export function ordered(rows, recent, current = null) {
  * @param {Map<string, number>} [zoxide]
  */
 export function bonus(row, recent, zoxide) {
-  const key = keyOf(row);
-  const at = Array.isArray(recent) ? recent.indexOf(key) : (recent.get(key) ?? -1);
+  const at = recency(row, Array.isArray(recent) ? places(recent) : recent) ?? -1;
   const space = row.space ? (row.space.status === "blocked" ? 15 : 10) : 0;
   return space + (at < 0 ? 0 : Math.max(1, 10 - at)) + (zoxide?.get(row.path) ?? 0);
+}
+
+/**
+ * Each key's place in a list, the first one where it appears twice.
+ * @param {string[]} list
+ */
+function places(list) {
+  /** @type {Map<string, number>} */
+  const at = new Map();
+  list.forEach((k, i) => {
+    if (!at.has(k)) at.set(k, i);
+  });
+  return at;
 }
 
 /**

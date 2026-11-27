@@ -1,6 +1,8 @@
 // The list Trailhead keeps between opens, so the popup can draw it in its first frame and
 // look for changes afterwards. Knows nothing about Herdr, so tests can run it under node.
 
+import { projectKey } from "./keys.js";
+
 const VERSION = 1;
 
 /**
@@ -12,7 +14,7 @@ const VERSION = 1;
 /**
  * The text to keep: the projects with what was learned about each.
  * @param {Project[]} projects
- * @param {Map<string, number>} touched when each path last changed, in seconds
+ * @param {Map<string, number>} touched when each project (by projectKey) last changed, in seconds
  * @returns {string}
  */
 export function keptText(projects, touched) {
@@ -24,7 +26,7 @@ export function keptText(projects, touched) {
     repo: p.repo ?? null,
     machine: p.machine ?? null,
     home: p.home ?? null,
-    touched: touched.get(p.machine ? `${p.machine}:${p.path}` : p.path) ?? p.touched ?? null,
+    touched: touched.get(projectKey(p.machine, p.path)) ?? p.touched ?? null,
   }));
   return JSON.stringify({ version: VERSION, rows });
 }
