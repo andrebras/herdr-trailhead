@@ -10,5 +10,11 @@
     "strict": true,
     "noEmit": true
   },
-  "files": ["mods/trailhead/paths.js", "mods/trailhead/match.js"]
+  "files": [
+    "mods/trailhead/paths.js",
+    "mods/trailhead/match.js",
+    "mods/trailhead/kept.js",
+    "mods/trailhead/settings.js",
+    "mods/trailhead/actions.js"
+  ]
 }
