@@ -17,9 +17,5 @@
       },
       "words": "folder repo git space sessionizer trailhead"
     }
-  ],
-  "settings": {
-    "agent": ["claude"],
-    "zoxide": "auto"
-  }
+  ]
 }

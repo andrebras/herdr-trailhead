@@ -8,7 +8,8 @@
 // path to a folder (~/code/foo) opens that folder. It never makes folders and never closes
 // a space.
 //
-// Settings: "settings" in this mod's mod.json, else projects.json in Herdr's folder:
+// Settings: trailhead.json in Herdr's folder, else projects.json there (never inside the
+// mod's folder, so an update can't reset them):
 //   { "roots": ["~/Lab"], "depth": 3, "folders": ["~/notes"], "agent": ["claude"], "zoxide": "auto" }
 // roots are searched for repos `depth` folders down; folders are listed as they are; agent
 // is what Cmd+Enter starts. A bad value, or a root it can't read, shows in the error bar at
@@ -251,7 +252,7 @@ export default class Trailhead extends View {
       return true;
     }
     const where = machine ? `on ${machine}` : "on this computer";
-    this.problem = `${program} isn't installed ${where}. Change "agent" in Trailhead's mod.json.`;
+    this.problem = `${program} isn't installed ${where}. Change "agent" in trailhead.json in Herdr's folder.`;
     cx.notify();
     return false;
   }
@@ -269,7 +270,7 @@ export default class Trailhead extends View {
         ? "Looking for projects…"
         : this.filter.trim()
           ? "No project matches. Type a path (~/code/app) to open any folder."
-          : 'No projects found. Set "roots" in Trailhead\'s mod.json to the folders that hold them.';
+          : 'No projects found. Set "roots" in trailhead.json in Herdr\'s folder to the folders that hold them.';
     // The error bar: one line, the most recent problem first, with how many more there are.
     const errors = [this.problem, ...this.problems, ...this.remoteProblems.values()].filter(Boolean);
     // The Machine column shows only once another machine is connected.
@@ -433,7 +434,7 @@ export default class Trailhead extends View {
   }
 }
 
-// The settings: the "settings" in this mod's mod.json, then projects.json in Herdr's folder.
+// The settings: trailhead.json, then projects.json, both in Herdr's folder.
 async function loadSettings() {
   const text = async (path) => {
     try {
@@ -442,8 +443,7 @@ async function loadSettings() {
       return null;
     }
   };
-  const folder = join(join(appHome(), "mods"), "trailhead");
-  return readSettings(await text(join(folder, "mod.json")), await text(join(appHome(), "projects.json")));
+  return readSettings(await text(join(appHome(), "trailhead.json")), await text(join(appHome(), "projects.json")));
 }
 
 // Every repo under the roots, plus the listed folders, each as { path, kind, logs, repo },

@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Other machines: projects on every machine Herdr is connected to, searched at the same time with a 2-second limit each, with a Machine column.
 - Alt+Enter (or Shift+Enter) makes a new space even if one is open; Cmd+Enter (Ctrl+Enter on Linux and Windows) also starts your agent, `claude` unless the `agent` setting says otherwise.
 - An error line at the top of the popup for bad settings, roots it can't read and a missing agent program.
-- Settings live in the mod's own `mod.json`; `projects.json` still works for the ones it doesn't set.
+- Settings live in `trailhead.json` in Herdr's folder, where updating the mod never resets them; `projects.json` still works for the ones it doesn't set.
 - Opens instantly: the last list shows in the first frame, then updates in place without moving your selection.
 - Ranking: an open space where an agent is blocked comes before other open spaces, and zoxide's ranking breaks ties when zoxide is installed.
 - A project picker: Cmd+O opens a popup that lists your open spaces and the git repositories under your folders. Enter goes to the project's space, or makes a new space in its folder.

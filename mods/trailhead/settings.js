@@ -1,6 +1,6 @@
-// Trailhead's settings: the "settings" object in its mod.json, with projects.json in Herdr's
-// folder as a fallback (where the first version kept them). Knows nothing about Herdr, so
-// tests can run it under node. Every problem found is reported in words for the error bar.
+// Trailhead's settings: trailhead.json in Herdr's folder, with projects.json there as a
+// fallback (where the first version kept them). Both sit outside the mod's own folder, so
+// updating the mod never resets them. Knows nothing about Herdr, so tests can run it under node. Every problem found is reported in words for the error bar.
 
 /** @typedef {{ roots: string[], depth: number, folders: string[], agent: string[], zoxide: "auto" | "off" }} Settings */
 
@@ -9,17 +9,17 @@ export const DEFAULTS = { roots: ["~/Lab"], depth: 3, folders: [], agent: ["clau
 
 /**
  * The settings, and what was wrong with them (the default is used for each bad value).
- * @param {string | null} modJson the mod's mod.json, or null when it can't be read
+ * @param {string | null} trailheadJson trailhead.json in Herdr's folder, or null when absent
  * @param {string | null} projectsJson projects.json in Herdr's folder, or null when absent
  * @returns {{ settings: Settings, problems: string[] }}
  */
-export function readSettings(modJson, projectsJson) {
+export function readSettings(trailheadJson, projectsJson) {
   /** @type {string[]} */
   const problems = [];
-  const own = parse(modJson, "mod.json", problems)?.settings;
+  const own = parse(trailheadJson, "trailhead.json", problems);
   const old = parse(projectsJson, "projects.json", problems);
   if (own !== undefined && (typeof own !== "object" || own === null || Array.isArray(own))) {
-    problems.push('"settings" in mod.json must be an object');
+    problems.push('trailhead.json must hold an object, such as {"agent": ["claude"]}');
   }
   const mine = typeof own === "object" && own !== null && !Array.isArray(own) ? own : {};
   const fallback = typeof old === "object" && old !== null && !Array.isArray(old) ? old : {};
