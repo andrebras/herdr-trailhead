@@ -1,2 +1,5 @@
 node_modules/
 .DS_Store
+# Written by Herdr next to a mod while it runs; never commit them.
+*.d.ts
+jsconfig.json

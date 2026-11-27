@@ -1,0 +1,14 @@
+{
+  "// why": "Type-checks the plain modules. main.js needs Herdr's generated type files (gpui-kit.d.ts, herdr.d.ts), which exist only where Herdr is installed, so bin/ci checks it locally with mods/trailhead/jsconfig.json.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "checkJs": true,
+    "strict": true,
+    "noEmit": true
+  },
+  "files": ["mods/trailhead/paths.js", "mods/trailhead/match.js"]
+}
