@@ -1,9 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readSettings, DEFAULTS } from "../mods/trailhead/settings.js";
+import { readSettings, presentRoots, DEFAULTS } from "../mods/trailhead/settings.js";
 
 test("no files means the defaults and no problems", () => {
-  assert.deepEqual(readSettings(null, null), { settings: DEFAULTS, problems: [] });
+  assert.deepEqual(readSettings(null, null), { settings: DEFAULTS, problems: [], defaultRoots: true });
+});
+
+test("the default roots are the usual code folders, searched only where they exist", () => {
+  assert.ok(DEFAULTS.roots.includes("~/code") && DEFAULTS.roots.includes("~/Developer"));
+  assert.equal(readSettings(JSON.stringify({ roots: ["~/mine"] }), null).defaultRoots, false);
+  // A bad "roots" is reported and the defaults are used, quietly where they're missing.
+  assert.equal(readSettings(JSON.stringify({ roots: "~/mine" }), null).defaultRoots, true);
+  assert.deepEqual(presentRoots(DEFAULTS.roots, ["Code", "Documents", "Lab", "code.txt"]), ["~/Code", "~/Lab"]);
 });
 
 test("trailhead.json wins over projects.json, which fills the rest", () => {

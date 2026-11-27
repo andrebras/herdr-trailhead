@@ -1,17 +1,41 @@
 // Trailhead's settings: trailhead.json in Herdr's folder, with projects.json there as a
-// fallback (where the first version kept them). Both sit outside the mod's own folder, so
-// updating the mod never resets them. Knows nothing about Herdr, so tests can run it under node. Every problem found is reported in words for the error bar.
+// fallback for the keys it doesn't set. Both sit outside the mod's own folder, so updating the
+// mod never resets them. Every problem found is reported in words for the error bar. Knows
+// nothing about Herdr, so tests can run it under node.
 
 /** @typedef {{ roots: string[], depth: number, folders: string[], agent: string[], zoxide: "auto" | "off" }} Settings */
 
-/** @type {Settings} */
-export const DEFAULTS = { roots: ["~/Lab"], depth: 3, folders: [], agent: ["claude"], zoxide: "auto" };
+/**
+ * The roots are the folders people most often keep their code in. Those that aren't there are
+ * skipped quietly; a root set in trailhead.json that isn't there is reported.
+ * @type {Settings}
+ */
+export const DEFAULTS = {
+  roots: [
+    "~/code",
+    "~/Code",
+    "~/projects",
+    "~/Projects",
+    "~/src",
+    "~/dev",
+    "~/Developer",
+    "~/work",
+    "~/git",
+    "~/repos",
+    "~/Lab",
+  ],
+  depth: 3,
+  folders: [],
+  agent: ["claude"],
+  zoxide: "auto",
+};
 
 /**
  * The settings, and what was wrong with them (the default is used for each bad value).
  * @param {string | null} trailheadJson trailhead.json in Herdr's folder, or null when absent
  * @param {string | null} projectsJson projects.json in Herdr's folder, or null when absent
- * @returns {{ settings: Settings, problems: string[] }}
+ * `defaultRoots`: no valid "roots" was set, so the default roots are searched where they exist.
+ * @returns {{ settings: Settings, problems: string[], defaultRoots: boolean }}
  */
 export function readSettings(trailheadJson, projectsJson) {
   /** @type {string[]} */
@@ -43,9 +67,10 @@ export function readSettings(trailheadJson, projectsJson) {
     problems.push(`"${key}" must be ${want}; using ${JSON.stringify(def)}`);
     return def;
   };
+  const roots = take("roots", strings, DEFAULTS.roots, "a list of folders");
   return {
     settings: {
-      roots: take("roots", strings, DEFAULTS.roots, "a list of folders"),
+      roots,
       depth: take(
         "depth",
         (v) => Number.isInteger(v) && Number(v) >= 1 && Number(v) <= 6,
@@ -62,6 +87,7 @@ export function readSettings(trailheadJson, projectsJson) {
       zoxide: take("zoxide", (v) => v === "auto" || v === "off", DEFAULTS.zoxide, '"auto" or "off"'),
     },
     problems,
+    defaultRoots: roots === DEFAULTS.roots,
   };
 }
 
@@ -79,4 +105,15 @@ function parse(text, name, problems) {
     problems.push(`${name} isn't valid JSON; using the defaults`);
     return undefined;
   }
+}
+
+/**
+ * The default roots that are in the home folder under exactly that name, given the names of the
+ * folders there: ~/code and ~/Code on a case-insensitive disk are one folder, listed once.
+ * @param {string[]} roots
+ * @param {string[]} names
+ */
+export function presentRoots(roots, names) {
+  const here = new Set(names);
+  return roots.filter((r) => here.has(r.replace(/^~[/\\]/, "")));
 }

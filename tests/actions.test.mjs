@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { command, installedCheck } from "../mods/trailhead/actions.js";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { command, installedCheck, checkedProgram } from "../mods/trailhead/actions.js";
 
 const project = { path: "/h/code/acme", name: "acme" };
 const space = { id: "sp1" };
@@ -28,6 +32,33 @@ test("a project on another machine makes its space there", () => {
 });
 
 test("the installed check uses sh, or where on Windows", () => {
-  assert.equal(installedCheck("claude", false).command, "sh");
+  assert.equal(installedCheck("claude", false)?.command, "sh");
   assert.deepEqual(installedCheck("claude", true), { command: "where", args: ["claude"] });
+  // `where` takes no paths: such an agent is started unchecked.
+  assert.equal(installedCheck("C:\\tools\\agent.exe", true), null);
+});
+
+// Runs the check as Herdr's exec would, with `home` as the home folder.
+const runCheck = (program, home) => {
+  const check = installedCheck(program, false);
+  try {
+    const stdout = execFileSync(check.command, check.args, {
+      env: { PATH: "/usr/bin:/bin", HOME: home },
+      encoding: "utf8",
+    });
+    return { code: 0, stdout };
+  } catch (e) {
+    return { code: e.status, stdout: e.stdout };
+  }
+};
+
+test("an agent under ~ is found, and starts with ~ expanded", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "trailhead-")));
+  mkdirSync(join(home, "bin"));
+  writeFileSync(join(home, "bin/start-work"), "#!/bin/sh\n", { mode: 0o755 });
+  const found = runCheck("~/bin/start-work", home);
+  assert.equal(checkedProgram("~/bin/start-work", false, found), join(home, "bin/start-work"));
+  assert.equal(checkedProgram("sh", false, runCheck("sh", home)), "sh");
+  assert.equal(checkedProgram("~/bin/nope", false, runCheck("~/bin/nope", home)), null);
+  assert.equal(checkedProgram("claude", true, { code: 0, stdout: "C:\\x\\claude.exe\r\n" }), "claude");
 });
