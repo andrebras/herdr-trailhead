@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Jump back: with nothing typed, the project you were in before is first and selected, so Cmd+O then Enter goes back to it; the current space moves to the bottom.
+- With nothing typed, projects below your open spaces and recent picks are ordered by when they last changed, newest first, instead of by name.
 - Other machines: projects on every machine Herdr is connected to, searched at the same time with a 2-second limit each, with a Machine column.
 - Alt+Enter (or Shift+Enter) makes a new space even if one is open; Cmd+Enter (Ctrl+Enter on Linux and Windows) also starts your agent, `claude` unless the `agent` setting says otherwise.
 - An error line at the top of the popup for bad settings, roots it can't read and a missing agent program.
