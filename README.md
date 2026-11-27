@@ -26,16 +26,17 @@ Trailhead opens a popup with a search field and a list of projects. A project is
 Rows look like this:
 
 ```text
-●  acme-web         ~/code/acme-web          repo       2h
-●  notes            ~/notes                  folder
-   acme-web-login   ~/code/acme-web-login    worktree   3d
+●  acme-web          repo       2h
+●  notes             folder
+   acme-web/login    worktree   3d
+   work/api          repo       5d
+   home/api          repo       2w
 ```
 
 From left to right, a row shows:
 
 - **A status dot**, on projects that have an open space. Its colour is the status of the agents in that space, in Herdr's own colours: working, blocked, done or idle. A space with no agent status shows the accent colour.
-- **The name**: the space's name, or the project folder's name.
-- **The path**, with `~` for your home folder.
+- **The name**: the space's name, or the project folder's name. A worktree is named after its repository too (`acme-web/login`). When two projects have the same folder name, each shows as much of its path as tells them apart (`work/api`, `home/api`). The letters that match what you typed are highlighted.
 - **The kind**: `repo` (a git repository), `worktree` (a git worktree: a second checkout of a repository, in its own folder, usually on another branch) or `folder` (a folder you listed in the settings). An open space that is not one of your projects shows no kind.
 - **The last change**: how long ago the project last changed, as `now`, `5m`, `3h`, `2d`, `3w`, `4mo` or `2y`. Trailhead reads this from git's reflog, the log git keeps in each repository of every commit, checkout and pull. Rows without git show nothing here.
 
@@ -100,13 +101,13 @@ To update Trailhead, delete `~/.config/herdr-app/mods/trailhead`, then copy the 
 
 ## Usage
 
-| Key               | What it does                                                                             |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| Cmd+O             | Opens Trailhead (with the binding above).                                                |
-| Typing            | Filters the list.                                                                        |
-| ↑ / ↓             | Moves the selection. It wraps around at both ends.                                       |
-| Enter, or a click | Goes to the project's space, or makes a new space in its folder, named after the folder. |
-| Esc               | Closes Trailhead.                                                                        |
+| Key                    | What it does                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| Cmd+O                  | Opens Trailhead (with the binding above).                                                |
+| Typing                 | Filters the list.                                                                        |
+| ↑ / ↓, Ctrl+P / Ctrl+N | Moves the selection. It wraps around at both ends.                                       |
+| Enter, or a click      | Goes to the project's space, or makes a new space in its folder, named after the folder. |
+| Esc                    | Closes Trailhead.                                                                        |
 
 To open any folder, type its path. It must start with `~`, `/`, or a drive such as `C:\`. Enter opens a space there. If the folder is in your home folder and does not exist, the row says "no such folder" and the popup stays open. Herdr only lets mods read inside your home folder, so a folder elsewhere opens without a check, and Herdr tells you if it is not there.
 
