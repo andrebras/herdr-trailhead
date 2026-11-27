@@ -14,6 +14,8 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { readFile, readdir, exists } from "fs/promises";
 import { spaces, panes, run, theme, props, closeOverlay, home, appHome } from "herdr";
+import { makePaths } from "./paths.js";
+import { best } from "./match.js";
 
 const DEFAULTS = { roots: ["~/Lab"], depth: 3, folders: [] };
 // How many matches show: the best ones, as a fuzzy finder does.
@@ -65,12 +67,7 @@ export default class Projects extends View {
       const first = same ?? { kind: "folder", name: base(path), path };
       return [first, ...inside].slice(0, SHOWN);
     }
-    return rows
-      .map((r) => ({ r, s: score(f, r.name.toLowerCase(), short(r.path).toLowerCase()) }))
-      .filter((x) => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, SHOWN)
-      .map((x) => x.r);
+    return best(rows, f, SHOWN, short);
   }
 
   async go(r, cx) {
@@ -276,58 +273,14 @@ function spaceFor(path, local) {
   return local.find(({ folders }) => folders.some(inside))?.space;
 }
 
-// Higher is better, 0 is no match: the name starting with it, then containing it, then
-// its letters in order in the name or the path (a fuzzy match, as fzf does).
-function score(f, name, path) {
-  if (name.startsWith(f)) return 400 - name.length;
-  if (name.includes(f)) return 300 - name.length;
-  if (inOrder(f, name)) return 200 - name.length;
-  if (path.includes(f)) return Math.max(101, 150 - path.length / 10);
-  if (inOrder(f, path)) return Math.max(1, 100 - path.length / 10);
-  return 0;
+// The path helpers for this computer's home folder (paths.js).
+function paths() {
+  return makePaths(home());
 }
-
-function inOrder(f, text) {
-  let i = 0;
-  for (const c of text) if (c === f[i]) i++;
-  return i === f.length;
-}
-
-// Paths use the system's separator: "\\" on Windows, where home() has one.
-function sep() {
-  return home().includes("\\") ? "\\" : "/";
-}
-
-function join(dir, name) {
-  return dir.endsWith(sep()) ? `${dir}${name}` : `${dir}${sep()}${name}`;
-}
-
-// A typed path: ~, /, \\ or a drive (C:\\).
-function isPath(text) {
-  return /^(~|[/\\]|[A-Za-z]:[/\\])/.test(text);
-}
-
-function expand(p) {
-  if (p === "~") return home();
-  return /^~[/\\]/.test(p) ? `${home()}${sep()}${p.slice(2)}` : p;
-}
-
-// Without a trailing separator, except for a root such as / or C:\\.
-function trim(p) {
-  const t = p.replace(/[/\\]+$/, "");
-  return t === "" ? p.slice(0, 1) : /^[A-Za-z]:$/.test(t) ? `${t}${sep()}` : t;
-}
-
-function inHome(p) {
-  const h = home();
-  return p === h || p.startsWith(join(h, ""));
-}
-
-function short(p) {
-  const h = home();
-  return p === h ? "~" : p.startsWith(`${h}${sep()}`) ? `~${sep()}${p.slice(h.length + 1)}` : p;
-}
-
-function base(p) {
-  return p.split(/[/\\]/).filter(Boolean).pop() ?? p;
-}
+const join = (dir, name) => paths().join(dir, name);
+const isPath = (text) => paths().isPath(text);
+const expand = (p) => paths().expand(p);
+const trim = (p) => paths().trim(p);
+const inHome = (p) => paths().inHome(p);
+const short = (p) => paths().short(p);
+const base = (p) => paths().base(p);

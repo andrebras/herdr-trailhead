@@ -1,0 +1,13 @@
+#!/bin/sh
+# The checks a pull request must pass: the unit tests, and, when the Herdr app is
+# installed, a load of the mod.
+set -e
+cd "$(dirname "$0")/.."
+node --test tests/*.test.mjs
+if command -v herdr-app >/dev/null 2>&1; then
+  home=$(mktemp -d)
+  mkdir -p "$home/mods"
+  cp -R mods/trailhead "$home/mods/trailhead"
+  HERDR_APP_HOME="$home" herdr-app check "$home/mods/trailhead"
+  rm -rf "$home"
+fi
