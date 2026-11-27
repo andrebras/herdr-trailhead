@@ -123,11 +123,12 @@ Trailhead reads `projects.json` in Herdr's folder (`~/.config/herdr-app/projects
 }
 ```
 
-| Setting   | Default     | What it does                                                                                              |
-| --------- | ----------- | --------------------------------------------------------------------------------------------------------- |
-| `roots`   | `["~/Lab"]` | The folders searched for git repositories. A root itself is never listed, only the repositories under it. |
-| `depth`   | `3`         | How many folder levels below each root to search. A whole number from 1 to 6; any other value means 3.    |
-| `folders` | `[]`        | Folders listed as they are, with the kind `folder`, git or not.                                           |
+| Setting   | Default     | What it does                                                                                                                                                 |
+| --------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `roots`   | `["~/Lab"]` | The folders searched for git repositories. A root itself is never listed, only the repositories under it.                                                    |
+| `depth`   | `3`         | How many folder levels below each root to search. A whole number from 1 to 6; any other value means 3.                                                       |
+| `folders` | `[]`        | Folders listed as they are, with the kind `folder`, git or not.                                                                                              |
+| `zoxide`  | `"auto"`    | `"auto"` uses [zoxide](https://github.com/ajeetdsouza/zoxide)'s ranking, when it is installed, to break ties between similar matches. `"off"` never runs it. |
 
 Without the file, or with a file that is not valid JSON, Trailhead uses the defaults.
 
@@ -140,9 +141,9 @@ While it searches, Trailhead:
 ## Privacy and permissions
 
 - **Files it reads:** `projects.json`, the folder names under your roots, and the `.git` entries and reflogs of the repositories it finds. Herdr only lets mods read files inside your home folder. A root outside it finds nothing. A listed folder or typed path outside it is shown or opened without being checked.
-- **Programs it runs:** none. It asks Herdr to select a space (`space.select`) or make one (`space.new`), and nothing else.
+- **Programs it runs:** only `zoxide query -ls`, once per open, when zoxide is installed and the `zoxide` setting is not `"off"`. Otherwise it asks Herdr to select a space (`space.select`) or make one (`space.new`), and nothing else.
 - **Network:** it makes no network requests.
-- **What it stores:** the last 50 projects you picked, so it can list them first. They are kept in the mod's local storage, which Herdr saves under `~/.config/herdr-app/data/trailhead/`.
+- **What it stores:** the last 50 projects you picked, so it can list them first, and the last list it found (names, paths, kinds and ages), so the next open shows it at once. Both are kept in the mod's local storage, which Herdr saves under `~/.config/herdr-app/data/trailhead/`.
 
 ## Roadmap
 

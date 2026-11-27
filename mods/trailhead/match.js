@@ -1,9 +1,18 @@
 // Matching that knows nothing about Herdr, so tests can run it under node.
 
 /**
- * A row in the list: a project, or a space that is open.
- * @typedef {{ name: string, path: string, space?: object }} Row
+ * A row in the list: a project, or a space that is open. `key` tells rows apart across
+ * machines (the path on this computer); `lname` and `lpath` are the name and the shown path
+ * in lowercase, worked out once when the list is built so a key press doesn't redo them.
+ * @typedef {{ name: string, path: string, key?: string, lname?: string, lpath?: string,
+ *   space?: { status?: string | null } }} Row
  */
+
+/**
+ * The row's identity: its key, or its path.
+ * @param {Row} r
+ */
+export const keyOf = (r) => r.key ?? r.path;
 
 // Higher is better, 0 is no match: the name starting with it, then containing it, then
 // its letters in order in the name or the path (a fuzzy match, as fzf does).
@@ -35,7 +44,9 @@ export function inOrder(f, text) {
 }
 
 // The best `shown` rows for a lowercase query, best first; ties keep their order.
-// `display(path)` gives the path as shown (~/...); `recent` the recent picks, newest first.
+// `display(path)` gives the path as shown (~/...); `recent` the recent picks, newest first;
+// `zoxide` a small bonus per path from zoxide's ranking (see zoxideBonus). One pass, and
+// only the matches are sorted, so a key press stays well under a frame with 5,000 rows.
 /**
  * @template {Row} R
  * @param {R[]} rows
@@ -43,16 +54,20 @@ export function inOrder(f, text) {
  * @param {number} shown
  * @param {(path: string) => string} display
  * @param {string[]} [recent]
+ * @param {Map<string, number>} [zoxide]
  * @returns {R[]}
  */
-export function best(rows, f, shown, display, recent = []) {
-  return rows
-    .map((r) => ({ r, m: score(f, r.name.toLowerCase(), display(r.path).toLowerCase()) }))
-    .filter((x) => x.m > 0)
-    .map((x) => ({ r: x.r, s: x.m + bonus(x.r, recent) }))
-    .sort((a, b) => b.s - a.s)
-    .slice(0, shown)
-    .map((x) => x.r);
+export function best(rows, f, shown, display, recent = [], zoxide = new Map()) {
+  const at = new Map(recent.map((p, i) => [p, i]));
+  /** @type {{ r: R, s: number, i: number }[]} */
+  const hits = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const m = score(f, r.lname ?? r.name.toLowerCase(), r.lpath ?? display(r.path).toLowerCase());
+    if (m > 0) hits.push({ r, s: m + bonus(r, at, zoxide), i });
+  }
+  hits.sort((a, b) => b.s - a.s || a.i - b.i);
+  return hits.slice(0, shown).map((x) => x.r);
 }
 
 // With nothing typed: open spaces first (in the sidebar's order), then your recent picks
@@ -65,27 +80,50 @@ export function best(rows, f, shown, display, recent = []) {
  */
 export function ordered(rows, recent) {
   const pick = new Map(recent.map((p, i) => [p, i]));
-  const group = (/** @type {R} */ r) => (r.space ? 0 : pick.has(r.path) ? 1 : 2);
+  const group = (/** @type {R} */ r) => (r.space ? 0 : pick.has(keyOf(r)) ? 1 : 2);
   return rows
     .map((r, i) => ({ r, i, g: group(r) }))
     .sort((a, b) => {
       if (a.g !== b.g) return a.g - b.g;
-      if (a.g === 1) return (pick.get(a.r.path) ?? 0) - (pick.get(b.r.path) ?? 0);
+      if (a.g === 1) return (pick.get(keyOf(a.r)) ?? 0) - (pick.get(keyOf(b.r)) ?? 0);
       if (a.g === 2) return a.r.name.localeCompare(b.r.name);
       return a.i - b.i;
     })
     .map((x) => x.r);
 }
 
-// Among similar matches, an open space and a recent pick come first. The bonus is worth at
-// most 20 characters of name length, so a clearly better kind of match still wins.
+// Among similar matches, an open space comes first, more so when an agent there needs you
+// (blocked), then a recent pick, then what zoxide ranks high. The bonus is worth at most 30
+// characters of name length, so a clearly better kind of match still wins.
 /**
  * @param {Row} row
- * @param {string[]} recent
+ * @param {string[] | Map<string, number>} recent recent picks, or their positions by key
+ * @param {Map<string, number>} [zoxide]
  */
-export function bonus(row, recent) {
-  const at = recent.indexOf(row.path);
-  return (row.space ? 10 : 0) + (at < 0 ? 0 : Math.max(1, 10 - at));
+export function bonus(row, recent, zoxide) {
+  const key = keyOf(row);
+  const at = Array.isArray(recent) ? recent.indexOf(key) : (recent.get(key) ?? -1);
+  const space = row.space ? (row.space.status === "blocked" ? 15 : 10) : 0;
+  return space + (at < 0 ? 0 : Math.max(1, 10 - at)) + (zoxide?.get(row.path) ?? 0);
+}
+
+/**
+ * `zoxide query -ls` output ("  12.5 /path" per line, best first) as a bonus per path: 5 for
+ * the best few, down to 1, nothing past the first 100.
+ * @param {string} text
+ * @returns {Map<string, number>}
+ */
+export function zoxideBonus(text) {
+  /** @type {Map<string, number>} */
+  const out = new Map();
+  for (const line of text.split("\n")) {
+    const m = /^\s*[\d.]+\s+(.+?)\s*$/.exec(line);
+    if (!m || out.has(m[1])) continue;
+    const rank = out.size;
+    if (rank >= 100) break;
+    out.set(m[1], Math.max(1, 5 - Math.floor(rank / 20)));
+  }
+  return out;
 }
 
 // How long ago, in a few letters: now, 5m, 3h, 2d, 3w, 4mo, 2y.

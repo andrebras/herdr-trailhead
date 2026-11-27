@@ -11,16 +11,33 @@
 // roots are searched for repos `depth` folders down; folders are listed as they are.
 // Without the file: ~/Lab, 3 deep. It looks again each time it opens. It reads folders
 // itself (no `find`, so it works the same on every system), skipping hidden folders and
-// node_modules, and only in your home folder, where mods may read. It runs no programs.
+// node_modules, and only in your home folder, where mods may read.
+//
+// Speed: the list from last time is kept in the mod's storage and drawn in the first frame;
+// the folders are read again after that, and the rows update in place without moving the
+// selection. zoxide's ranking breaks ties between similar matches when it is installed
+// (`zoxide query -ls`, the only program it runs; "zoxide": "off" in projects.json stops it).
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { readFile, readdir } from "fs/promises";
-import { spaces, panes, run, theme, props, closeOverlay, home, appHome } from "herdr";
+import { spaces, panes, run, theme, props, closeOverlay, home, appHome, exec, checking } from "herdr";
 import { makePaths } from "./paths.js";
-import { best, ordered, age, reflogTime, positions, pieces, uniqueNames, worktreeRepo } from "./match.js";
+import {
+  best,
+  ordered,
+  age,
+  reflogTime,
+  positions,
+  pieces,
+  uniqueNames,
+  worktreeRepo,
+  zoxideBonus,
+  keyOf,
+} from "./match.js";
+import { keptText, readKept } from "./kept.js";
 
-const DEFAULTS = { roots: ["~/Lab"], depth: 3, folders: [] };
+const DEFAULTS = { roots: ["~/Lab"], depth: 3, folders: [], zoxide: "auto" };
 // How many matches show: the best ones, as a fuzzy finder does.
 const SHOWN = 12;
 // At most this many folders are looked at per search, so a huge root can't stall it.
@@ -28,39 +45,69 @@ const MAX_FOLDERS = 5000;
 // The projects you picked last, newest first, kept in this mod's storage.
 const RECENT_KEY = "trailhead.recent";
 const RECENT_MAX = 50;
+// The last list found, kept so the next open draws it at once and then looks for changes.
+const KEPT_KEY = "trailhead.list";
 
 export default class Trailhead extends View {
   init(_props, cx) {
     this.filter = "";
     this.at = 0;
-    this.repos = null; // [{ path, kind, logs, name }], once found
-    this.touched = new Map(); // path → seconds since 1970 of its last commit, checkout or pull
+    this.selected = null; // the selected row's key, so it stays selected when the list updates
+    // The list from last time draws in the first frame; nothing is read from disk before it.
+    const kept = readKept(storageGet(KEPT_KEY));
+    this.repos = kept ? kept.map(prepare) : null; // [{ path, kind, logs, name, key, lname, lpath }]
+    this.touched = new Map(); // key → seconds since 1970 of its last commit, checkout or pull
+    for (const r of kept ?? [])
+      if (r.touched !== null && r.touched !== undefined) this.touched.set(keyOf(prepare(r)), r.touched);
+    this.zoxide = new Map(); // path → a small ranking bonus, when zoxide is installed
+    this.version = 0; // bumps when what the rows are built from changes
     this.recent = readRecent();
     this.input = InputState.new({ placeholder: "Open a project…" });
     this.input.on("change", (_e, cx) => {
       this.filter = this.input.value();
       this.at = 0;
+      this.selected = null;
       cx.notify();
     });
     this.input.on("submit", (_e, cx) => cx.spawn((cx) => this.go(this.rows()[this.at], cx)));
     this.input.focus();
-    cx.timer.after(600, () => this.input.focus());
+    // Popups take the keyboard a moment after they open; ask again then. Not while
+    // `herdr-app check` loads the mod, which reloads it and would strand the timer.
+    if (!checking()) cx.timer.after(600, () => this.input.focus());
     this.handle = cx.focus_handle();
+    // Look for changes after the first draw: the folders, then when each repo last changed.
     cx.spawn(async (cx) => {
-      const found = await findProjects(await config());
+      const settings = await config();
+      if (settings.zoxide !== "off" && !checking()) cx.spawn((cx) => this.loadZoxide(cx));
+      const found = await findProjects(settings);
       // Named after their folder; a worktree after its repo too ("acme/login"); and where two
       // names clash, after as much of the path as tells them apart.
       const label = (r) => (r.repo ? `${base(r.repo)}/${base(r.path)}` : base(r.path));
       const names = uniqueNames(found.map((r) => ({ path: r.path, label: label(r) })));
-      this.repos = found.map((r, i) => ({ ...r, name: names[i] }));
+      this.repos = found.map((r, i) => prepare({ ...r, name: names[i] }));
+      this.version++;
       cx.notify();
-      // When each repo last changed, read after the list shows so it never waits on this.
       for (const r of this.repos) {
         const t = r.logs ? await lastChange(r.logs) : null;
-        if (t !== null) this.touched.set(r.path, t);
+        if (t !== null) this.touched.set(r.key, t);
       }
+      this.version++;
       cx.notify();
+      storageSet(KEPT_KEY, keptText(this.repos, this.touched));
     });
+  }
+
+  // zoxide's ranking, when it is installed; without it nothing changes.
+  async loadZoxide(cx) {
+    try {
+      const out = await exec("zoxide", ["query", "-ls"], { timeout: 2000 });
+      if (out.code !== 0) return;
+      this.zoxide = zoxideBonus(out.stdout);
+      this.version++;
+      cx.notify();
+    } catch {
+      // Not installed: the order just doesn't use it.
+    }
   }
 
   close() {
@@ -70,17 +117,7 @@ export default class Trailhead extends View {
   // Open spaces on this computer, then the projects without one. With nothing typed:
   // open spaces, then your recent picks, then the rest by name. Typed: best matches first.
   rows() {
-    const local = localSpaces();
-    const repos = this.repos ?? [];
-    const kindOf = new Map(repos.map((r) => [r.path, r.kind]));
-    const row = (r) => ({ ...r, touched: this.touched.get(r.path) ?? null });
-    const rows = local.map(({ space, folders }) => {
-      const path = space.folder && kindOf.has(space.folder) ? space.folder : (folders[0] ?? "");
-      return row({ kind: kindOf.get(path) ?? "space", space, name: space.name, path });
-    });
-    for (const r of repos) {
-      if (!spaceFor(r.path, local)) rows.push(row({ kind: r.kind, name: r.name, path: r.path }));
-    }
+    const rows = this.allRows();
     const typed = this.filter.trim();
     const f = typed.toLowerCase();
     if (!f) return ordered(rows, this.recent).slice(0, SHOWN);
@@ -93,13 +130,33 @@ export default class Trailhead extends View {
       const first = same ?? { kind: "typed", name: short(path), path, touched: null };
       return [first, ...inside].slice(0, SHOWN);
     }
-    return best(rows, f, SHOWN, short, this.recent);
+    return best(rows, f, SHOWN, short, this.recent, this.zoxide);
+  }
+
+  // Every row, built again only when the projects or the spaces change, not on each key.
+  allRows() {
+    const local = localSpaces();
+    const sig = `${this.version}|${JSON.stringify(local.map(({ space, folders }) => [space.id, space.name, space.status, folders]))}`;
+    if (this.built?.sig === sig) return this.built.rows;
+    const repos = this.repos ?? [];
+    const kindOf = new Map(repos.map((r) => [r.path, r.kind]));
+    const touched = (key) => this.touched.get(key) ?? null;
+    const rows = local.map(({ space, folders }) => {
+      const path = space.folder && kindOf.has(space.folder) ? space.folder : (folders[0] ?? "");
+      const r = prepare({ kind: kindOf.get(path) ?? "space", space, name: space.name, path });
+      return { ...r, touched: touched(r.key) };
+    });
+    for (const r of repos) {
+      if (!spaceFor(r.path, local)) rows.push({ ...r, touched: touched(r.key) });
+    }
+    this.built = { sig, rows };
+    return rows;
   }
 
   async go(r, cx) {
     if (!r) return;
     if (r.kind === "typed") return this.openTyped(r.path, cx);
-    remember(r.path);
+    remember(keyOf(r));
     this.close();
     if (r.kind === "space") return run("space.select", { id: r.space.id });
     const there = spaceFor(r.path, localSpaces());
@@ -126,7 +183,11 @@ export default class Trailhead extends View {
   render() {
     const t = theme();
     const rows = this.rows();
+    // Keep the selected row selected when the list updates under it.
+    const was = this.selected ? rows.findIndex((r) => keyOf(r) === this.selected) : -1;
+    if (was >= 0) this.at = was;
     this.at = Math.max(0, Math.min(this.at, rows.length - 1));
+    this.selected = rows[this.at] ? keyOf(rows[this.at]) : null;
     const empty =
       this.repos === null
         ? "Looking for projects…"
@@ -213,6 +274,7 @@ export default class Trailhead extends View {
         if (k === "down" || k === "ctrl-n") this.at = (this.at + 1) % rows.length;
         else if (k === "up" || k === "ctrl-p") this.at = (this.at + rows.length - 1) % rows.length;
         else return;
+        this.selected = null;
         cx.stop_propagation();
         cx.notify();
       })
@@ -264,7 +326,8 @@ async function config() {
     const c = JSON.parse(await readFile(`${appHome()}/projects.json`, "utf8"));
     const list = (v, d) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()) : d);
     const depth = Number.isInteger(c?.depth) && c.depth >= 1 && c.depth <= 6 ? c.depth : DEFAULTS.depth;
-    return { roots: list(c?.roots, DEFAULTS.roots), depth, folders: list(c?.folders, []) };
+    const zoxide = c?.zoxide === "off" ? "off" : "auto";
+    return { roots: list(c?.roots, DEFAULTS.roots), depth, folders: list(c?.folders, []), zoxide };
   } catch {
     return DEFAULTS;
   }
@@ -382,6 +445,28 @@ const inHome = (p) => paths().inHome(p);
 const short = (p) => paths().short(p);
 const base = (p) => paths().base(p);
 
+// A row ready for matching: its key, and its name and shown path in lowercase.
+function prepare(r) {
+  const key = r.machine ? `${r.machine}:${r.path}` : r.path;
+  return { ...r, key, lname: r.name.toLowerCase(), lpath: short(r.path).toLowerCase() };
+}
+
+function storageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable: the next open just starts empty.
+  }
+}
+
 function readRecent() {
   try {
     const list = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
@@ -391,7 +476,7 @@ function readRecent() {
   }
 }
 
-// Puts a path first in the recent picks.
+// Puts a row's key (its path, on this computer) first in the recent picks.
 function remember(path) {
   const list = [path, ...readRecent().filter((p) => p !== path)].slice(0, RECENT_MAX);
   try {
