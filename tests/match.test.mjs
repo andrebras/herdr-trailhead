@@ -52,13 +52,47 @@ test("best keeps the top rows, best first, and drops non-matches", () => {
 
 const row = (name, extra = {}) => ({ name, path: `/home/sam/code/${name}`, ...extra });
 
-test("with nothing typed: open spaces, then recent picks, then the rest by name", () => {
+const at = (name) => `/home/sam/code/${name}`;
+
+test("with nothing typed: the previous pick, open spaces, other recent picks, then the rest", () => {
   const rows = [row("zinnia"), row("maple", { space: { id: "s1" } }), row("birch"), row("cedar"), row("aspen")];
-  const recent = ["/home/sam/code/cedar", "/home/sam/code/zinnia"];
   assert.deepEqual(
-    ordered(rows, recent).map((r) => r.name),
-    ["maple", "cedar", "zinnia", "aspen", "birch"],
+    ordered(rows, [at("cedar"), at("zinnia")]).map((r) => r.name),
+    ["cedar", "maple", "zinnia", "aspen", "birch"],
   );
+});
+
+test("the rest are ordered by last change, newest first, then the unknown ones by name", () => {
+  const rows = [
+    row("old", { touched: 100 }),
+    row("zed"),
+    row("new", { touched: 300 }),
+    row("abe"),
+    row("mid", { touched: 200 }),
+  ];
+  assert.deepEqual(
+    ordered(rows, []).map((r) => r.name),
+    ["new", "mid", "old", "abe", "zed"],
+  );
+});
+
+test("jump back: A to B in Trailhead, then C in the sidebar, puts B first and C last", () => {
+  const space = (name) => row(name, { space: { id: name } });
+  const rows = [space("a"), space("b"), space("c"), row("d")];
+  // Opening Trailhead in A saves A; picking B saves B; opening it again in C saves C.
+  const recent = [at("c"), at("b"), at("a")];
+  assert.deepEqual(
+    ordered(rows, recent, at("c")).map((r) => r.name),
+    ["b", "a", "d", "c"],
+  );
+});
+
+test("jump back twice: going back to B then opening again offers C", () => {
+  const space = (name) => row(name, { space: { id: name } });
+  const rows = [space("a"), space("b"), space("c")];
+  const recent = [at("b"), at("c"), at("a")];
+  assert.equal(ordered(rows, recent, at("b"))[0].name, "c");
+  assert.equal(ordered(rows, recent, at("b")).at(-1)?.name, "b");
 });
 
 test("an open space or a recent pick wins a tie, newer picks more", () => {

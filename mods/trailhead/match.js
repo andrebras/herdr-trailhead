@@ -70,23 +70,46 @@ export function best(rows, f, shown, display, recent = [], zoxide = new Map()) {
   return hits.slice(0, shown).map((x) => x.r);
 }
 
-// With nothing typed: open spaces first (in the sidebar's order), then your recent picks
-// (newest first), then the rest by name.
+// With nothing typed, so Cmd+O then Enter jumps back to the project you were in before:
+// 1. the newest recent pick that isn't the current space (it starts selected);
+// 2. the other open spaces, in the sidebar's order;
+// 3. the other recent picks, newest first;
+// 4. the rest, most recently changed first; those with no known change last, by name;
+// 5. the current space, last (going to it would change nothing).
 /**
- * @template {Row} R
+ * @template {Row & { touched?: number | null }} R
  * @param {R[]} rows
- * @param {string[]} recent
+ * @param {string[]} recent keys of recent picks, newest first
+ * @param {string | null} [current] the current space's row key
  * @returns {R[]}
  */
-export function ordered(rows, recent) {
-  const pick = new Map(recent.map((p, i) => [p, i]));
-  const group = (/** @type {R} */ r) => (r.space ? 0 : pick.has(keyOf(r)) ? 1 : 2);
+export function ordered(rows, recent, current = null) {
+  const keys = new Set(rows.map(keyOf));
+  /** @type {Map<string, number>} */
+  const pick = new Map();
+  recent.forEach((k, i) => {
+    if (k !== current && !pick.has(k)) pick.set(k, i);
+  });
+  const previous = recent.find((k) => k !== current && keys.has(k)) ?? null;
+  const group = (/** @type {R} */ r) => {
+    const k = keyOf(r);
+    if (k === current) return 4;
+    if (k === previous) return 0;
+    if (r.space) return 1;
+    return pick.has(k) ? 2 : 3;
+  };
   return rows
     .map((r, i) => ({ r, i, g: group(r) }))
     .sort((a, b) => {
       if (a.g !== b.g) return a.g - b.g;
-      if (a.g === 1) return (pick.get(keyOf(a.r)) ?? 0) - (pick.get(keyOf(b.r)) ?? 0);
-      if (a.g === 2) return a.r.name.localeCompare(b.r.name);
+      if (a.g === 2) return (pick.get(keyOf(a.r)) ?? 0) - (pick.get(keyOf(b.r)) ?? 0);
+      if (a.g === 3) {
+        const ta = a.r.touched ?? null;
+        const tb = b.r.touched ?? null;
+        if (ta !== null && tb !== null && ta !== tb) return tb - ta;
+        if ((ta === null) !== (tb === null)) return ta === null ? 1 : -1;
+        return a.r.name.localeCompare(b.r.name);
+      }
       return a.i - b.i;
     })
     .map((x) => x.r);
