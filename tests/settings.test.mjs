@@ -6,8 +6,8 @@ test("no files means the defaults and no problems", () => {
   assert.deepEqual(readSettings(null, null), { settings: DEFAULTS, problems: [] });
 });
 
-test("mod.json settings win over projects.json, which fills the rest", () => {
-  const mod = JSON.stringify({ settings: { roots: ["~/code"], agent: ["codex"] } });
+test("trailhead.json wins over projects.json, which fills the rest", () => {
+  const mod = JSON.stringify({ roots: ["~/code"], agent: ["codex"] });
   const old = JSON.stringify({ roots: ["~/old"], depth: 2, folders: ["~/notes"] });
   const { settings, problems } = readSettings(mod, old);
   assert.deepEqual(settings.roots, ["~/code"]);
@@ -18,7 +18,7 @@ test("mod.json settings win over projects.json, which fills the rest", () => {
 });
 
 test("a bad value falls back to its default and is reported", () => {
-  const mod = JSON.stringify({ settings: { depth: 9, agent: "claude", zoxide: "yes" } });
+  const mod = JSON.stringify({ depth: 9, agent: "claude", zoxide: "yes" });
   const { settings, problems } = readSettings(mod, null);
   assert.equal(settings.depth, 3);
   assert.deepEqual(settings.agent, ["claude"]);
@@ -31,11 +31,18 @@ test("broken JSON is reported and the defaults are used", () => {
   const { settings, problems } = readSettings("{nope", "[1,");
   assert.deepEqual(settings, DEFAULTS);
   assert.deepEqual(problems, [
-    "mod.json isn't valid JSON; using the defaults",
+    "trailhead.json isn't valid JSON; using the defaults",
     "projects.json isn't valid JSON; using the defaults",
   ]);
 });
 
 test("an empty folders list is fine", () => {
-  assert.deepEqual(readSettings(JSON.stringify({ settings: { folders: [] } }), null).problems, []);
+  assert.deepEqual(readSettings(JSON.stringify({ folders: [] }), null).problems, []);
+});
+
+test("trailhead.json that isn't an object is reported", () => {
+  const { settings, problems } = readSettings("[1]", null);
+  assert.deepEqual(settings, DEFAULTS);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /trailhead.json must hold an object/);
 });
