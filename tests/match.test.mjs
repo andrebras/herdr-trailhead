@@ -21,10 +21,19 @@ test("letters in order", () => {
 });
 
 test("best keeps the top rows, best first, and drops non-matches", () => {
-  const rows = ["orchard", "harbor", "harbor-docs", "pinecone"].map((name) => ({ name, path: `/home/sam/code/${name}` }));
+  const rows = ["orchard", "harbor", "harbor-docs", "pinecone"].map((name) => ({
+    name,
+    path: `/home/sam/code/${name}`,
+  }));
   const shown = (p) => p.replace("/home/sam", "~");
-  assert.deepEqual(best(rows, "harb", 12, shown).map((r) => r.name), ["harbor", "harbor-docs"]);
-  assert.deepEqual(best(rows, "harb", 1, shown).map((r) => r.name), ["harbor"]);
+  assert.deepEqual(
+    best(rows, "harb", 12, shown).map((r) => r.name),
+    ["harbor", "harbor-docs"],
+  );
+  assert.deepEqual(
+    best(rows, "harb", 1, shown).map((r) => r.name),
+    ["harbor"],
+  );
   assert.deepEqual(best(rows, "zzz", 12, shown), []);
 });
 
@@ -35,7 +44,10 @@ const row = (name, extra = {}) => ({ name, path: `/home/sam/code/${name}`, ...ex
 test("with nothing typed: open spaces, then recent picks, then the rest by name", () => {
   const rows = [row("zinnia"), row("maple", { space: { id: "s1" } }), row("birch"), row("cedar"), row("aspen")];
   const recent = ["/home/sam/code/cedar", "/home/sam/code/zinnia"];
-  assert.deepEqual(ordered(rows, recent).map((r) => r.name), ["maple", "cedar", "zinnia", "aspen", "birch"]);
+  assert.deepEqual(
+    ordered(rows, recent).map((r) => r.name),
+    ["maple", "cedar", "zinnia", "aspen", "birch"],
+  );
 });
 
 test("an open space or a recent pick wins a tie, newer picks more", () => {
@@ -59,7 +71,9 @@ test("ages read in a few letters", () => {
 });
 
 test("reads the time of a reflog's last entry", () => {
-  const z = "0".repeat(40), a = "a".repeat(40), b = "b".repeat(40);
+  const z = "0".repeat(40),
+    a = "a".repeat(40),
+    b = "b".repeat(40);
   const text = `${z} ${a} Sam <sam@example.com> 1700000000 +0100\tcommit (initial): start\n${a} ${b} Sam <sam@example.com> 1700000500 -0500\tcheckout: moving from main to next\n`;
   assert.equal(reflogTime(text), 1700000500);
   assert.equal(reflogTime(""), null);

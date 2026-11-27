@@ -134,9 +134,18 @@ export default class Trailhead extends View {
     // The status dot: an open space in its agents' colour (accent with none), a typed folder +.
     const dot = (r) =>
       r.space
-        ? div().w(12).flex_none().text_color(statusColor[r.space.status] ?? t.accent).child("●")
-        : div().w(12).flex_none().text_color(t.dim).child(r.kind === "typed" ? "+" : "");
-    const kindText = (r) => (r.kind === "typed" ? (missing ? "no such folder" : "open folder") : r.kind === "space" ? "" : r.kind);
+        ? div()
+            .w(12)
+            .flex_none()
+            .text_color(statusColor[r.space.status] ?? t.accent)
+            .child("●")
+        : div()
+            .w(12)
+            .flex_none()
+            .text_color(t.dim)
+            .child(r.kind === "typed" ? "+" : "");
+    const kindText = (r) =>
+      r.kind === "typed" ? (missing ? "no such folder" : "open folder") : r.kind === "space" ? "" : r.kind;
     const row = (r, i) =>
       h_flex()
         .id(`th-${i}`)
@@ -260,7 +269,11 @@ async function findProjects({ roots, depth, folders }) {
     }
     const git = isRoot ? null : entries.find((e) => e.name === ".git");
     if (git) {
-      found.push(git.isDirectory() ? { path: dir, kind: "repo", logs: join(join(join(dir, ".git"), "logs"), "HEAD") } : await worktree(dir));
+      found.push(
+        git.isDirectory()
+          ? { path: dir, kind: "repo", logs: join(join(join(dir, ".git"), "logs"), "HEAD") }
+          : await worktree(dir),
+      );
       return;
     }
     if (left <= 0) return;

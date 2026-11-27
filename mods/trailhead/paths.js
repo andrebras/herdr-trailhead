@@ -8,7 +8,8 @@
 export function makePaths(home) {
   const sep = home.includes("\\") ? "\\" : "/";
 
-  const join = (/** @type {string} */ dir, /** @type {string} */ name) => (dir.endsWith(sep) ? `${dir}${name}` : `${dir}${sep}${name}`);
+  const join = (/** @type {string} */ dir, /** @type {string} */ name) =>
+    dir.endsWith(sep) ? `${dir}${name}` : `${dir}${sep}${name}`;
 
   // A typed path: ~, /, \\ or a drive (C:\\).
   const isPath = (/** @type {string} */ text) => /^(~|[/\\]|[A-Za-z]:[/\\])/.test(text);
@@ -26,7 +27,8 @@ export function makePaths(home) {
 
   const inHome = (/** @type {string} */ p) => p === home || p.startsWith(join(home, ""));
 
-  const short = (/** @type {string} */ p) => (p === home ? "~" : p.startsWith(`${home}${sep}`) ? `~${sep}${p.slice(home.length + 1)}` : p);
+  const short = (/** @type {string} */ p) =>
+    p === home ? "~" : p.startsWith(`${home}${sep}`) ? `~${sep}${p.slice(home.length + 1)}` : p;
 
   const base = (/** @type {string} */ p) => p.split(/[/\\]/).filter(Boolean).pop() ?? p;
 
