@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { score, inOrder, best } from "../mods/trailhead/match.js";
+import {
+  score,
+  inOrder,
+  best,
+  ordered,
+  bonus,
+  age,
+  reflogTime,
+  positions,
+  pieces,
+  uniqueNames,
+  worktreeRepo,
+} from "../mods/trailhead/match.js";
 
 test("ranks a name prefix over a substring over letters in order over the path", () => {
   const prefix = score("app", "apple", "~/code/apple");
@@ -36,8 +48,6 @@ test("best keeps the top rows, best first, and drops non-matches", () => {
   );
   assert.deepEqual(best(rows, "zzz", 12, shown), []);
 });
-
-import { ordered, bonus, age, reflogTime } from "../mods/trailhead/match.js";
 
 const row = (name, extra = {}) => ({ name, path: `/home/sam/code/${name}`, ...extra });
 
@@ -77,4 +87,37 @@ test("reads the time of a reflog's last entry", () => {
   const text = `${z} ${a} Sam <sam@example.com> 1700000000 +0100\tcommit (initial): start\n${a} ${b} Sam <sam@example.com> 1700000500 -0500\tcheckout: moving from main to next\n`;
   assert.equal(reflogTime(text), 1700000500);
   assert.equal(reflogTime(""), null);
+});
+
+test("positions finds the whole query first, then its letters in order", () => {
+  assert.deepEqual(positions("web", "acme-web"), [5, 6, 7]);
+  assert.deepEqual(positions("aw", "acme-web"), [0, 5]);
+  assert.deepEqual(positions("WEB".toLowerCase(), "Acme-Web"), [5, 6, 7]);
+  assert.deepEqual(positions("xyz", "acme-web"), []);
+  assert.deepEqual(positions("", "acme-web"), []);
+});
+
+test("pieces alternates matched and unmatched runs", () => {
+  assert.deepEqual(pieces("acme-web", [0, 5]), [
+    { text: "a", hit: true },
+    { text: "cme-", hit: false },
+    { text: "w", hit: true },
+    { text: "eb", hit: false },
+  ]);
+  assert.deepEqual(pieces("abc", []), [{ text: "abc", hit: false }]);
+});
+
+test("uniqueNames keeps unique labels and lengthens clashing ones", () => {
+  const names = uniqueNames([
+    { path: "/h/work/api", label: "api" },
+    { path: "/h/home/api", label: "api" },
+    { path: "/h/notes", label: "notes" },
+  ]);
+  assert.deepEqual(names, ["work/api", "home/api", "notes"]);
+});
+
+test("worktreeRepo reads the repo folder from a worktree's gitdir", () => {
+  assert.equal(worktreeRepo("/h/code/acme/.git/worktrees/login"), "/h/code/acme");
+  assert.equal(worktreeRepo("C:\\code\\acme\\.git\\worktrees\\login"), "C:\\code\\acme");
+  assert.equal(worktreeRepo("/h/elsewhere/gitdir"), null);
 });
