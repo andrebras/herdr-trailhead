@@ -22,14 +22,33 @@ export function command(project, space, how) {
   return { name: "space.new", args: { folder: project.path, name: project.name, ...argv, ...machine } };
 }
 
+// sh's `command -v` finds a program on PATH or by its path. A leading ~ is expanded to that
+// machine's home first (Herdr starts the agent without a shell that would expand it), and the
+// program is printed back as it should be started.
+const SH_CHECK =
+  'p=$1; case $p in "~") p=$HOME ;; "~/"*) p=$HOME/${p#"~/"} ;; esac; command -v "$p" >/dev/null 2>&1 && printf %s "$p"';
+
 /**
- * How to check that a program is installed, run through `exec`: `command -v` in sh, or
- * `where` on Windows.
+ * How to check that the agent program is installed, run through `exec` on the machine it
+ * starts on: sh, or `where` on Windows. Null when it can't be checked (a path on Windows, which
+ * `where` doesn't take): it is then started anyway and the terminal shows any error.
  * @param {string} program
  * @param {boolean} windows
- * @returns {{ command: string, args: string[] }}
+ * @returns {{ command: string, args: string[] } | null}
  */
 export function installedCheck(program, windows) {
-  if (windows) return { command: "where", args: [program] };
-  return { command: "sh", args: ["-c", 'command -v "$1" >/dev/null 2>&1', "sh", program] };
+  if (!windows) return { command: "sh", args: ["-c", SH_CHECK, "sh", program] };
+  return /[/\\]/.test(program) ? null : { command: "where", args: [program] };
+}
+
+/**
+ * The program to start, from what the check printed, or null when it isn't installed.
+ * @param {string} program
+ * @param {boolean} windows
+ * @param {{ code: number, stdout: string }} out
+ * @returns {string | null}
+ */
+export function checkedProgram(program, windows, out) {
+  if (out.code !== 0) return null;
+  return windows ? program : out.stdout || program;
 }
