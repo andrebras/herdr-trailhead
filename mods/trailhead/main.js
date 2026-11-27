@@ -1,33 +1,41 @@
-// Open a project: the git repos under your folders, as tmux-sessionizer lists them. Type
-// to filter, ↑/↓ and Enter: go to the project's space, or make one there named after the
-// folder. Open spaces come first. A typed path to a folder (~/code/foo) opens that folder
-// when nothing matches; nothing else happens then. It never makes folders.
+// Trailhead: open a project, or get back to it. The git repos under your folders, as
+// tmux-sessionizer lists them. Type to filter, ↑/↓ and Enter: go to the project's space,
+// or make one there named after the folder. With nothing typed: open spaces, then your
+// recent picks, then the rest by name. Each row shows its space's agent status, its kind
+// (repo, worktree, folder) and when it last changed (its reflog's last entry: a commit,
+// checkout or pull). A typed path to a folder (~/code/foo) opens that folder. It never
+// makes folders and never closes a space.
 //
 // Where it looks: projects.json in Herdr's folder,
 //   { "roots": ["~/Lab"], "depth": 3, "folders": ["~/notes"] }
 // roots are searched for repos `depth` folders down; folders are listed as they are.
 // Without the file: ~/Lab, 3 deep. It looks again each time it opens. It reads folders
 // itself (no `find`, so it works the same on every system), skipping hidden folders and
-// node_modules, and only in your home folder, where mods may read.
+// node_modules, and only in your home folder, where mods may read. It runs no programs.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { readFile, readdir, exists } from "fs/promises";
 import { spaces, panes, run, theme, props, closeOverlay, home, appHome } from "herdr";
 import { makePaths } from "./paths.js";
-import { best } from "./match.js";
+import { best, ordered, age, reflogTime } from "./match.js";
 
 const DEFAULTS = { roots: ["~/Lab"], depth: 3, folders: [] };
 // How many matches show: the best ones, as a fuzzy finder does.
 const SHOWN = 12;
 // At most this many folders are looked at per search, so a huge root can't stall it.
 const MAX_FOLDERS = 5000;
+// The projects you picked last, newest first, kept in this mod's storage.
+const RECENT_KEY = "trailhead.recent";
+const RECENT_MAX = 50;
 
-export default class Projects extends View {
+export default class Trailhead extends View {
   init(_props, cx) {
     this.filter = "";
     this.at = 0;
-    this.repos = null; // absolute paths, once found
+    this.repos = null; // [{ path, kind, logs }], once found
+    this.touched = new Map(); // path → seconds since 1970 of its last commit, checkout or pull
+    this.recent = readRecent();
     this.input = InputState.new({ placeholder: "Open a project…" });
     this.input.on("change", (_e, cx) => {
       this.filter = this.input.value();
@@ -41,6 +49,12 @@ export default class Projects extends View {
     cx.spawn(async (cx) => {
       this.repos = await findProjects(await config());
       cx.notify();
+      // When each repo last changed, read after the list shows so it never waits on this.
+      for (const r of this.repos) {
+        const t = r.logs ? await lastChange(r.logs) : null;
+        if (t !== null) this.touched.set(r.path, t);
+      }
+      cx.notify();
     });
   }
 
@@ -48,31 +62,39 @@ export default class Projects extends View {
     closeOverlay(props().overlay);
   }
 
-  // Open spaces on this computer, then the projects without one, best matches first.
+  // Open spaces on this computer, then the projects without one. With nothing typed:
+  // open spaces, then your recent picks, then the rest by name. Typed: best matches first.
   rows() {
     const local = localSpaces();
-    const rows = local.map(({ space, folders }) => ({ kind: "space", space, name: space.name, path: folders[0] ?? "" }));
-    for (const path of this.repos ?? []) {
-      if (!spaceFor(path, local)) rows.push({ kind: "project", name: base(path), path });
+    const repos = this.repos ?? [];
+    const kindOf = new Map(repos.map((r) => [r.path, r.kind]));
+    const row = (r) => ({ ...r, touched: this.touched.get(r.path) ?? null });
+    const rows = local.map(({ space, folders }) => {
+      const path = space.folder && kindOf.has(space.folder) ? space.folder : (folders[0] ?? "");
+      return row({ kind: kindOf.get(path) ?? "space", space, name: space.name, path });
+    });
+    for (const r of repos) {
+      if (!spaceFor(r.path, local)) rows.push(row({ kind: r.kind, name: base(r.path), path: r.path }));
     }
     const typed = this.filter.trim();
     const f = typed.toLowerCase();
-    if (!f) return rows.slice(0, SHOWN);
+    if (!f) return ordered(rows, this.recent).slice(0, SHOWN);
     // A typed path: that folder first, then what is inside it.
     if (isPath(typed)) {
       const path = trim(expand(typed));
       const key = (p) => p.toLowerCase();
       const same = rows.find((r) => key(r.path) === key(path));
       const inside = rows.filter((r) => r !== same && key(r.path).startsWith(key(join(path, ""))));
-      const first = same ?? { kind: "folder", name: base(path), path };
+      const first = same ?? { kind: "typed", name: base(path), path, touched: null };
       return [first, ...inside].slice(0, SHOWN);
     }
-    return best(rows, f, SHOWN, short);
+    return best(rows, f, SHOWN, short, this.recent);
   }
 
   async go(r, cx) {
     if (!r) return;
-    if (r.kind === "folder") return this.openTyped(r.path, cx);
+    if (r.kind === "typed") return this.openTyped(r.path, cx);
+    remember(r.path);
     this.close();
     if (r.kind === "space") return run("space.select", { id: r.space.id });
     const there = spaceFor(r.path, localSpaces());
@@ -89,6 +111,7 @@ export default class Projects extends View {
       cx.notify();
       return;
     }
+    remember(path);
     this.close();
     const there = spaceFor(path, localSpaces());
     if (there) run("space.select", { id: there.id });
@@ -106,12 +129,17 @@ export default class Projects extends View {
           ? "No project matches. Type a path (~/code/app) to open any folder."
           : "No projects found. List your folders in projects.json in Herdr's folder.";
     const missing = this.missing !== undefined && this.missing === this.filter.trim();
-    const glyph = { space: "●", project: "○", folder: "+" };
-    const note = (r) =>
-      r.kind === "space" ? "open" : r.kind === "folder" ? (missing ? "no such folder" : "open this folder") : null;
+    const now = Date.now() / 1000;
+    const statusColor = { working: t.working, blocked: t.blocked, done: t.done, idle: t.idle };
+    // The status dot: an open space in its agents' colour (accent with none), a typed folder +.
+    const dot = (r) =>
+      r.space
+        ? div().w(12).flex_none().text_color(statusColor[r.space.status] ?? t.accent).child("●")
+        : div().w(12).flex_none().text_color(t.dim).child(r.kind === "typed" ? "+" : "");
+    const kindText = (r) => (r.kind === "typed" ? (missing ? "no such folder" : "open folder") : r.kind === "space" ? "" : r.kind);
     const row = (r, i) =>
       h_flex()
-        .id(`pj-${i}`)
+        .id(`th-${i}`)
         .mx(4)
         .px(10)
         .h(34)
@@ -122,20 +150,27 @@ export default class Projects extends View {
         .when(i === this.at, (el) => el.bg(t.hover))
         .hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => cx.spawn((cx) => this.go(r, cx)))
-        .child(div().w(12).flex_none().text_color(r.kind === "space" ? t.accent : t.dim).child(glyph[r.kind]))
+        .child(dot(r))
         .child(div().flex_none().max_w(220).truncate().text_color(t.foreground).child(r.name))
         .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.dim).child(short(r.path)))
-        .when(Boolean(note(r)), (el) =>
-          el.child(
-            div()
-              .flex_none()
-              .text_size(11)
-              .text_color(r.kind === "folder" && missing ? t.blocked : t.muted)
-              .child(note(r)),
-          ),
+        .child(
+          div()
+            .w(72)
+            .flex_none()
+            .text_size(11)
+            .text_color(r.kind === "typed" && missing ? t.blocked : t.muted)
+            .child(kindText(r)),
+        )
+        .child(
+          div()
+            .w(36)
+            .flex_none()
+            .text_size(11)
+            .text_color(t.dim)
+            .child(r.touched === null ? "" : age(now - r.touched)),
         );
     return v_flex()
-      .id("projects")
+      .id("trailhead")
       .track_focus(this.handle)
       .w_full()
       .min_h(0)
@@ -159,7 +194,7 @@ export default class Projects extends View {
           .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("Open a project"))
           .child(
             div()
-              .id("projects-esc")
+              .id("trailhead-esc")
               .px(6)
               .py(2)
               .rounded(5)
@@ -187,7 +222,7 @@ export default class Projects extends View {
       )
       .child(
         v_flex()
-          .id("pj-list")
+          .id("th-list")
           .mb(6)
           .when(rows.length === 0, (el) => el.child(div().px(14).py(8).text_size(12).text_color(t.dim).child(empty)))
           .children(rows.map(row)),
@@ -207,13 +242,15 @@ async function config() {
   }
 }
 
-// Every repo (a folder with .git, a worktree's .git file included) under the roots,
-// plus the listed folders. A repo's own folders aren't searched, so a submodule or a
-// vendored checkout inside it is left out.
+// Every repo under the roots, plus the listed folders, each as { path, kind, logs }:
+// kind "repo" (a .git folder), "worktree" (a .git file pointing at its repo's) or
+// "folder"; logs is the reflog that says when it last changed. A repo's own folders
+// aren't searched, so a submodule or a vendored checkout inside it is left out.
 async function findProjects({ roots, depth, folders }) {
   const found = [];
   let budget = MAX_FOLDERS;
-  const walk = async (dir, left) => {
+  // `left`: how many more levels below this folder may be searched.
+  const walk = async (dir, left, isRoot) => {
     if (budget-- <= 0) return;
     let entries;
     try {
@@ -221,21 +258,48 @@ async function findProjects({ roots, depth, folders }) {
     } catch {
       return; // gone, unreadable, or outside the home folder
     }
+    const git = isRoot ? null : entries.find((e) => e.name === ".git");
+    if (git) {
+      found.push(git.isDirectory() ? { path: dir, kind: "repo", logs: join(join(join(dir, ".git"), "logs"), "HEAD") } : await worktree(dir));
+      return;
+    }
+    if (left <= 0) return;
     for (const e of entries) {
       if (e.name.startsWith(".") || e.name === "node_modules" || !e.isDirectory()) continue;
-      if (budget-- <= 0) return;
-      const sub = join(dir, e.name);
-      if (await exists(join(sub, ".git")).catch(() => false)) found.push(sub);
-      else if (left > 1) await walk(sub, left - 1);
+      await walk(join(dir, e.name), left - 1, false);
     }
   };
-  for (const root of roots) await walk(trim(expand(root)), depth);
-  const listed = [];
+  for (const root of roots) await walk(trim(expand(root)), depth, true);
+  found.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const seen = new Set(found.map((r) => r.path));
   for (const f of folders) {
     const path = trim(expand(f));
-    if (!inHome(path) || (await isFolder(path))) listed.push(path);
+    if (seen.has(path)) continue;
+    if (!inHome(path) || (await isFolder(path))) found.push({ path, kind: "folder", logs: null });
+    seen.add(path);
   }
-  return [...new Set([...found.sort(), ...listed])];
+  return found;
+}
+
+// A worktree's .git file says "gitdir: <its folder in the repo's .git>", where its reflog is.
+async function worktree(dir) {
+  try {
+    const text = await readFile(join(dir, ".git"), "utf8");
+    const gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(text)?.[1];
+    const abs = gitdir && (isPath(gitdir) ? gitdir : join(dir, gitdir));
+    return { path: dir, kind: "worktree", logs: abs ? join(join(abs, "logs"), "HEAD") : null };
+  } catch {
+    return { path: dir, kind: "worktree", logs: null };
+  }
+}
+
+// Seconds since 1970 of the reflog's last entry, or null when there is none to read.
+async function lastChange(logs) {
+  try {
+    return reflogTime(await readFile(logs, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 async function isFolder(path) {
@@ -284,3 +348,22 @@ const trim = (p) => paths().trim(p);
 const inHome = (p) => paths().inHome(p);
 const short = (p) => paths().short(p);
 const base = (p) => paths().base(p);
+
+function readRecent() {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+    return Array.isArray(list) ? list.filter((p) => typeof p === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+// Puts a path first in the recent picks.
+function remember(path) {
+  const list = [path, ...readRecent().filter((p) => p !== path)].slice(0, RECENT_MAX);
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+  } catch {
+    // Storage unavailable: the order just doesn't remember.
+  }
+}
