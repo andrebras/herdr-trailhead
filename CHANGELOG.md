@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Opens instantly: the last list shows in the first frame, then updates in place without moving your selection.
+- Ranking: an open space where an agent is blocked comes before other open spaces, and zoxide's ranking breaks ties when zoxide is installed.
 - A project picker: Cmd+O opens a popup that lists your open spaces and the git repositories under your folders. Enter goes to the project's space, or makes a new space in its folder.
 - Fuzzy matching: type a few letters of a project's name or path to find it.
 - Typed paths, such as `~/code/acme-web`, open any folder.
