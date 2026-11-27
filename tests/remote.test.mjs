@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { shellPath, findScript, parseFound } from "../mods/trailhead/remote.js";
+import { shellPath, findScript, parseFound, scanProblem } from "../mods/trailhead/remote.js";
 
 test("shellPath turns ~ into the machine's home and quotes the rest", () => {
   assert.equal(shellPath("~"), '"$HOME"');
@@ -13,7 +13,7 @@ test("shellPath turns ~ into the machine's home and quotes the rest", () => {
 });
 
 test("parseFound reads home, repos, worktrees and unreadable roots", () => {
-  const out = ["H /home/me", "R /home/me/code/api/.git", "W /home/me/code/api-login/.git", "E /nope", ""].join("\n");
+  const out = ["H /home/me", "R /home/me/code/api", "W /home/me/code/api-login", "E /nope", ""].join("\n");
   assert.deepEqual(parseFound(out), {
     home: "/home/me",
     found: [
@@ -25,10 +25,19 @@ test("parseFound reads home, repos, worktrees and unreadable roots", () => {
 });
 
 test("parseFound leaves out repos inside another repo", () => {
-  const out = "R /c/app/.git\nR /c/app/vendor/lib/.git\nR /c/apple/.git\n";
+  const out = "R /c/app\nR /c/app/vendor/lib\nR /c/apple\n";
   assert.deepEqual(
     parseFound(out).found.map((p) => p.path),
     ["/c/app", "/c/apple"],
+  );
+});
+
+test("parseFound leaves out a nested repo even when a sibling sorts between them", () => {
+  // "-", "." and " " sort before "/", so app-two lands between app and app/vendor/lib.
+  const out = "R /c/app\nR /c/app-two\nR /c/app.old\nR /c/app/vendor/lib\nR /c/app two\n";
+  assert.deepEqual(
+    parseFound(out).found.map((p) => p.path),
+    ["/c/app", "/c/app two", "/c/app-two", "/c/app.old"],
   );
 });
 
@@ -40,6 +49,7 @@ test("the find script finds repos and worktrees as the local search does", () =>
   mk("code/group/deep/er/too-deep/.git");
   mk("code/.hidden/secret/.git");
   mk("code/node_modules/pkg/.git");
+  mk("code/api/vendor/lib/.git");
   mk("code/login");
   writeFileSync(join(home, "code/login/.git"), "gitdir: /elsewhere\n");
   writeFileSync(join(home, "not-a-folder"), "");
@@ -47,6 +57,8 @@ test("the find script finds repos and worktrees as the local search does", () =>
     env: { ...process.env, HOME: home },
     encoding: "utf8",
   });
+  // It stops at a repo: nothing inside api is even listed.
+  assert.ok(!out.includes("vendor"), out);
   const { found, unreadable } = parseFound(out);
   assert.deepEqual(
     found.map((p) => `${p.kind} ${p.path.slice(home.length)}`),
@@ -55,4 +67,42 @@ test("the find script finds repos and worktrees as the local search does", () =>
   // A missing root is skipped quietly (roots often differ between machines); one that is
   // there but can't be opened is reported.
   assert.deepEqual(unreadable, [join(home, "not-a-folder")]);
+});
+
+test("with the default roots, only those in the home folder under that exact name are searched", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "trailhead-")));
+  mkdirSync(join(home, "Code/api/.git"), { recursive: true });
+  writeFileSync(join(home, "src"), "");
+  const out = execFileSync("sh", ["-c", findScript(["~/code", "~/Code", "~/src", "~/dev"], 3, true)], {
+    env: { ...process.env, HOME: home },
+    encoding: "utf8",
+  });
+  // ~/code and ~/Code are one folder on a case-insensitive disk: listed once. ~/src is a file
+  // and ~/dev is missing: neither is reported.
+  assert.deepEqual(parseFound(out), { home, found: [{ path: join(home, "Code/api"), kind: "repo" }], unreadable: [] });
+});
+
+test("each way a machine can fail to list its projects reads differently", () => {
+  const ok = { code: 0, stdout: "H /h\n", stderr: "" };
+  assert.equal(scanProblem("devbox", 2, ok), null);
+  assert.equal(
+    scanProblem("devbox", 2, null, new Error("sh took longer than 2 s on devbox and was stopped")),
+    "devbox didn't answer within 2 seconds",
+  );
+  assert.equal(
+    scanProblem("devbox", 2, null, new Error("cannot start sh: program not found")),
+    "Can't list the projects on devbox: it has no sh",
+  );
+  assert.equal(
+    scanProblem("devbox", 2, null, new Error("machine devbox is not connected\nmore")),
+    "Can't reach devbox: machine devbox is not connected",
+  );
+  assert.equal(
+    scanProblem("devbox", 2, { code: 2, stdout: "", stderr: "sh: syntax error\n" }),
+    "Listing the projects on devbox failed: sh: syntax error",
+  );
+  assert.equal(
+    scanProblem("devbox", 2, { code: 1, stdout: "", stderr: "" }),
+    "Listing the projects on devbox failed: exit code 1",
+  );
 });
