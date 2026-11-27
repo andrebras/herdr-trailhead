@@ -1,0 +1,80 @@
+# Contributing to Trailhead
+
+Thank you for helping. This guide explains how to set up the project, which checks a change must pass, and how to send it.
+
+By taking part, you agree to follow the [code of conduct](CODE_OF_CONDUCT.md). To report a security problem, do not open an issue: follow [SECURITY.md](SECURITY.md).
+
+## Report a bug or ask for a feature
+
+Open an issue and pick the bug report or the feature request form. Search the existing issues first, in case someone has reported it already. For anything bigger than a small fix, open an issue before you write code, so we can agree on the approach.
+
+## Set up
+
+You need:
+
+- [Node.js](https://nodejs.org) 22.13 or newer. The exact version is pinned in `.tool-versions`, which version managers such as asdf and mise read.
+- The [Herdr](https://herdr.dev) desktop app, to try the mod and to run `herdr-app check`. The unit tests run without it.
+
+Then:
+
+```sh
+git clone https://github.com/andrebras/herdr-trailhead.git
+cd herdr-trailhead
+npm ci
+```
+
+`npm ci` installs the exact versions of the development tools listed in `package-lock.json`.
+
+To try your change in Herdr, copy `mods/trailhead` into `~/.config/herdr-app/mods/` as the [README](README.md#install) explains. Herdr reloads a mod when one of its files is saved.
+
+## Checks
+
+| Command                | What it does                                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `npm test`             | Runs the unit tests.                                                                                              |
+| `npm run lint`         | Checks the code for common mistakes.                                                                              |
+| `npm run format`       | Formats the code, Markdown files included.                                                                        |
+| `npm run format:check` | Checks the formatting without changing anything.                                                                  |
+| `npm run typecheck`    | Checks the types.                                                                                                 |
+| `bin/ci`               | Runs the tests, the lint, the formatting check and the type check, and `herdr-app check` when Herdr is installed. |
+
+`herdr-app check` loads the mod in Herdr and reports any error. `bin/ci` runs it with a temporary Herdr folder, so your own setup is not touched.
+
+GitHub's CI (continuous integration: the checks that run on every pull request) cannot run `herdr-app check`, because Herdr is not installed there. So run `bin/ci` on your own computer, and make sure it passes, before you open a pull request.
+
+## Tests
+
+The matching and path logic lives in `mods/trailhead/match.js` and `mods/trailhead/paths.js`. These files do not use Herdr, so Node.js can test them. Their tests are in `tests/`.
+
+When you change how Trailhead matches, orders or ages rows, or how it reads and shortens paths, add or update a test in the same pull request. A bug fix comes with a test that fails without the fix.
+
+## Send a change
+
+1. Create a branch from `main`. Never push to `main` directly: every change goes through a pull request.
+2. Make your change, with tests where they apply.
+3. Run `bin/ci` and fix anything it reports.
+4. Update the [README](README.md) when you change what a person sees or can do. Add a line to the `Unreleased` section of the [changelog](CHANGELOG.md) when the change is one people will notice.
+5. Push your branch and open a pull request. Fill in the template: what the change is, why, what changed, how you tested it, and what the reviewer should look at.
+
+Keep pull requests small: one change each. A small pull request is easier to review and quicker to merge. Split a large change into several pull requests that each work on their own.
+
+## Commit messages
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org): a type, a colon, and a short description. Write them in lowercase, on a single line, with no body and no trailers.
+
+```text
+feat: list folders from projects.json
+fix: keep the selection on the last row after a filter
+docs: explain the depth setting
+test: cover paths on windows drives
+```
+
+Common types are `feat` (a new feature), `fix` (a bug fix), `docs` (documentation only), `test` (tests only), `refactor` (a code change that changes no behaviour) and `chore` (tooling and upkeep). Make each commit one change.
+
+## Screenshots
+
+A screenshot helps when a change alters what the popup shows. Use invented project names and paths in it, such as `acme-web` or `~/code/notes`, never your real projects, folders or user name.
+
+## License
+
+By contributing, you agree that your contributions are licensed under the [Apache License 2.0](LICENSE), the same license as the project.
