@@ -125,10 +125,10 @@ When something is wrong, one red line at the top of the popup says what: a setti
 
 ## Settings
 
-Trailhead's settings live in its own `mod.json` (`~/.config/herdr-app/mods/trailhead/mod.json`), in the `"settings"` object. Trailhead reads them each time it opens, so a change shows the next time you open it. Settings that `mod.json` doesn't set are read from `projects.json` in Herdr's folder, where earlier versions kept them, and otherwise take their defaults.
+Put your settings in `trailhead.json` in Herdr's folder (`~/.config/herdr-app/trailhead.json`). The file is yours: it sits outside the mod's folder, so updating Trailhead never touches it. Every setting is optional; a missing one takes its default. Trailhead reads the file each time it opens, so a change shows the next time you open it. Settings it doesn't set are read from `projects.json` in Herdr's folder, if you have one from an earlier version.
 
 ```json
-"settings": {
+{
   "roots": ["~/code"],
   "depth": 3,
   "folders": ["~/notes"],
@@ -155,8 +155,6 @@ Set `agent` to the command you want, split into a list: the program first, then 
 
 Trailhead checks that the program is installed (on the project's machine) before it opens anything. If it isn't, the red line at the top says so and the popup stays open.
 
-Updating Trailhead by copying the folder again replaces `mod.json`, so note your settings first, or keep them in `projects.json`, which an update never touches.
-
 While it searches, Trailhead:
 
 - skips hidden folders (names that start with `.`) and `node_modules`;
@@ -173,7 +171,7 @@ The remote machine needs `sh` and `find`, which Linux and macOS have.
 
 ## Privacy and permissions
 
-- **Files it reads:** its `mod.json`, `projects.json`, the folder names under your roots, and the `.git` entries and reflogs of the repositories it finds. Herdr only lets mods read files inside your home folder. A root outside it can't be read, and the error line says so. A listed folder or typed path outside it is shown or opened without being checked.
+- **Files it reads:** `trailhead.json` and `projects.json` in Herdr's folder, the folder names under your roots, and the `.git` entries and reflogs of the repositories it finds. Herdr only lets mods read files inside your home folder. A root outside it can't be read, and the error line says so. A listed folder or typed path outside it is shown or opened without being checked.
 - **Programs it runs:** on each other machine Herdr is connected to, a `find` script that lists the git repositories under your roots (no file contents are read); `zoxide query -ls`, once per open, when zoxide is installed and the `zoxide` setting is not `"off"`; and on Cmd+Enter, a check that the agent program is installed (`command -v`, or `where` on Windows). Otherwise it asks Herdr to select a space (`space.select`), make one (`space.new`) or add a tab (`tab.new`), and nothing else.
 - **Network:** it makes no network requests.
 - **What it stores:** the last 50 projects you picked, so it can list them first, and the last list it found (names, paths, kinds and ages), so the next open shows it at once. Both are kept in the mod's local storage, which Herdr saves under `~/.config/herdr-app/data/trailhead/`.

@@ -37,7 +37,7 @@ body:
     id: settings
     attributes:
       label: Your settings
-      description: The "settings" in Trailhead's mod.json, and projects.json in Herdr's folder if you have one. Replace real paths with invented ones.
+      description: Your trailhead.json (and projects.json, if you have one) from Herdr's folder. Replace real paths with invented ones.
       render: json
   - type: input
     id: trailhead-version
