@@ -1,0 +1,27 @@
+{
+  "// why": [
+    "Type-checks main.js, the part of the mod that uses Herdr. Herdr writes the type files it",
+    "needs (gpui-kit.d.ts, herdr.d.ts) into its own folder on every start, and they must not be",
+    "committed, so bin/typecheck-herdr copies them into .herdr-types/ first and skips this check",
+    "where Herdr isn't installed, such as on GitHub's CI.",
+    "",
+    "strictNullChecks is off here, as in the jsconfig.json Herdr writes next to a mod: a view",
+    "sets its fields in init(), which TypeScript can't see as definite the way it sees a",
+    "constructor, so every field would read as possibly undefined. tsconfig.json checks the",
+    "plain modules with it on. skipLibCheck: Herdr's type files are not ours to fix."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "checkJs": true,
+    "strict": true,
+    "strictNullChecks": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "paths": { "herdr": ["./.herdr-types/herdr.d.ts"] }
+  },
+  "files": [".herdr-types/gpui-kit.d.ts", "mods/trailhead/main.js"]
+}
