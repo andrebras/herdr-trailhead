@@ -25,7 +25,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { readFile, readdir } from "fs/promises";
 import { platform } from "os";
-import { spaces, panes, run, theme, props, closeOverlay, home, appHome, exec, checking } from "herdr";
+import { spaces, panes, run, theme, props, closeOverlay, home, appHome, exec, checking, machines } from "herdr";
 import { makePaths } from "./paths.js";
 import {
   best,
@@ -42,6 +42,7 @@ import {
 import { keptText, readKept } from "./kept.js";
 import { readSettings, DEFAULTS } from "./settings.js";
 import { command, installedCheck } from "./actions.js";
+import { findScript, parseFound } from "./remote.js";
 
 // How many matches show: the best ones, as a fuzzy finder does.
 const SHOWN = 12;
@@ -67,6 +68,7 @@ export default class Trailhead extends View {
     this.zoxide = new Map(); // path → a small ranking bonus, when zoxide is installed
     this.settings = DEFAULTS;
     this.problems = []; // what's wrong with the settings or the roots, shown in the error bar
+    this.remoteProblems = new Map(); // machine → why its projects couldn't be listed
     this.problem = null; // what went wrong with the last pick (a missing agent program)
     this.enterAt = 0; // when Alt+Enter was handled, so the input's own Enter doesn't repeat it
     this.version = 0; // bumps when what the rows are built from changes
@@ -95,16 +97,24 @@ export default class Trailhead extends View {
       const { settings, problems } = await loadSettings();
       this.settings = settings;
       if (settings.zoxide !== "off" && !checking()) cx.spawn((cx) => this.loadZoxide(cx));
+      // Every other machine is searched at the same time, each on its own, so a slow one
+      // never holds up this computer's rows or the others'.
+      for (const m of machines()) {
+        if (m.name && m.layout !== "unavailable" && !checking())
+          cx.spawn((cx) => this.scanMachine(m.name, settings, cx));
+      }
       const { found, unreadable } = await findProjects(settings);
       this.problems = [...problems, ...unreadable];
       // Named after their folder; a worktree after its repo too ("acme/login"); and where two
       // names clash, after as much of the path as tells them apart.
       const label = (r) => (r.repo ? `${base(r.repo)}/${base(r.path)}` : base(r.path));
       const names = uniqueNames(found.map((r) => ({ path: r.path, label: label(r) })));
-      this.repos = found.map((r, i) => prepare({ ...r, name: names[i] }));
+      const others = (this.repos ?? []).filter((r) => r.machine);
+      this.repos = [...found.map((r, i) => prepare({ ...r, name: names[i] })), ...others];
       this.version++;
       cx.notify();
       for (const r of this.repos) {
+        if (r.machine) continue;
         const t = r.logs ? await lastChange(r.logs) : null;
         if (t !== null) this.touched.set(r.key, t);
       }
@@ -112,6 +122,31 @@ export default class Trailhead extends View {
       cx.notify();
       storageSet(KEPT_KEY, keptText(this.repos, this.touched));
     });
+  }
+
+  // The projects on another machine: one `find` script run there, with a 2-second limit.
+  // Mods can't read another machine's files, so these rows have no age.
+  async scanMachine(name, settings, cx) {
+    let out;
+    try {
+      out = await exec("sh", ["-c", findScript(settings.roots, settings.depth)], { on: name, timeout: 2000 });
+    } catch {
+      out = null;
+    }
+    if (!out || (out.code !== 0 && !out.stdout)) {
+      this.remoteProblems.set(name, `Couldn't list the projects on ${name} within 2 seconds`);
+      cx.notify();
+      return;
+    }
+    const { home: there, found, unreadable } = parseFound(out.stdout);
+    if (unreadable.length > 0) this.remoteProblems.set(name, `Can't read ${unreadable.join(", ")} on ${name}`);
+    else this.remoteProblems.delete(name);
+    const names = uniqueNames(found.map((p) => ({ path: p.path, label: base(p.path) })));
+    const rows = found.map((p, i) => prepare({ ...p, name: names[i], machine: name, home: there, logs: null }));
+    this.repos = [...(this.repos ?? []).filter((r) => r.machine !== name), ...rows];
+    this.version++;
+    cx.notify();
+    storageSet(KEPT_KEY, keptText(this.repos, this.touched));
   }
 
   // zoxide's ranking, when it is installed; without it nothing changes.
@@ -152,19 +187,24 @@ export default class Trailhead extends View {
 
   // Every row, built again only when the projects or the spaces change, not on each key.
   allRows() {
-    const local = localSpaces();
-    const sig = `${this.version}|${JSON.stringify(local.map(({ space, folders }) => [space.id, space.name, space.status, folders]))}`;
+    const open = openSpaces();
+    const sig = `${this.version}|${JSON.stringify(open.map(({ space, folders }) => [space.id, space.name, space.status, folders]))}`;
     if (this.built?.sig === sig) return this.built.rows;
     const repos = this.repos ?? [];
-    const kindOf = new Map(repos.map((r) => [r.path, r.kind]));
+    const where = (machine, path) => `${machine ?? ""}:${path}`;
+    const kindOf = new Map(repos.map((r) => [where(r.machine, r.path), r.kind]));
+    const homeOf = new Map(repos.filter((r) => r.machine).map((r) => [r.machine, r.home]));
     const touched = (key) => this.touched.get(key) ?? null;
-    const rows = local.map(({ space, folders }) => {
-      const path = space.folder && kindOf.has(space.folder) ? space.folder : (folders[0] ?? "");
-      const r = prepare({ kind: kindOf.get(path) ?? "space", space, name: space.name, path });
+    const rows = open.map(({ space, folders }) => {
+      const machine = space.machine ?? null;
+      const madeThere = space.folder && kindOf.has(where(machine, space.folder));
+      const path = madeThere ? space.folder : (folders[0] ?? "");
+      const kind = kindOf.get(where(machine, path)) ?? "space";
+      const r = prepare({ kind, space, name: space.name, path, machine, home: homeOf.get(machine) ?? null });
       return { ...r, touched: touched(r.key) };
     });
     for (const r of repos) {
-      if (!spaceFor(r.path, local)) rows.push({ ...r, touched: touched(r.key) });
+      if (!spaceFor(r.path, open, r.machine ?? null)) rows.push({ ...r, touched: touched(r.key) });
     }
     this.built = { sig, rows };
     return rows;
@@ -188,7 +228,7 @@ export default class Trailhead extends View {
     remember(keyOf(r));
     this.close();
     const project = { path, name: r.kind === "typed" ? base(path) : r.name, machine: r.machine ?? null };
-    const space = r.space ?? spaceFor(path, localSpaces());
+    const space = r.space ?? spaceFor(path, openSpaces(), r.machine ?? null);
     const c = command(project, space ?? null, { fresh: how.fresh, agent });
     run(c.name, c.args);
   }
@@ -224,7 +264,9 @@ export default class Trailhead extends View {
           ? "No project matches. Type a path (~/code/app) to open any folder."
           : 'No projects found. Set "roots" in Trailhead\'s mod.json to the folders that hold them.';
     // The error bar: one line, the most recent problem first, with how many more there are.
-    const errors = [this.problem, ...this.problems].filter(Boolean);
+    const errors = [this.problem, ...this.problems, ...this.remoteProblems.values()].filter(Boolean);
+    // The Machine column shows only once another machine is connected.
+    const connected = machines().some((m) => m.name);
     const errorLine = errors.length > 1 ? `${errors[0]} (and ${errors.length - 1} more)` : errors[0];
     const agentName = base(this.settings.agent[0] ?? "agent");
     const missing = this.missing !== undefined && this.missing === this.filter.trim();
@@ -275,6 +317,17 @@ export default class Trailhead extends View {
         .on_click((_e, cx) => cx.spawn((cx) => this.go(r, cx)))
         .child(dot(r))
         .child(name(r))
+        .when(connected, (el) =>
+          el.child(
+            div()
+              .w(80)
+              .flex_none()
+              .truncate()
+              .text_size(11)
+              .text_color(t.muted)
+              .child(r.machine ?? "local"),
+          ),
+        )
         .child(
           div()
             .w(72)
@@ -467,30 +520,31 @@ async function isFolder(path) {
   }
 }
 
-// The spaces on this computer, each with its folders: where it is now first (its shown
-// tab's focused terminal, else its first), then its other terminals' folders, then where
-// it was made. Read once per list, not once per project.
-function localSpaces() {
+// The open spaces, on every machine, each with its folders: where it is now first (its
+// shown tab's focused terminal, else its first), then its other terminals' folders, then
+// where it was made. Read once per list, not once per project.
+function openSpaces() {
   const all = panes();
-  return spaces()
-    .filter((s) => !s.machine)
-    .map((space) => {
-      const shown = space.tabs.find((t) => t.active) ?? space.tabs[0];
-      const tabs = new Set(space.tabs.map((t) => t.id));
-      const mine = all.filter((p) => tabs.has(p.tab) && p.cwd);
-      const here = mine.filter((p) => p.tab === shown?.id);
-      const now = (here.find((p) => p.focused) ?? here[0])?.cwd;
-      const folders = [now, ...mine.map((p) => p.cwd), space.folder].filter(Boolean);
-      return { space, folders: [...new Set(folders)] };
-    });
+  return spaces().map((space) => {
+    const shown = space.tabs.find((t) => t.active) ?? space.tabs[0];
+    const tabs = new Set(space.tabs.map((t) => t.id));
+    const mine = all.filter((p) => tabs.has(p.tab) && p.cwd);
+    const here = mine.filter((p) => p.tab === shown?.id);
+    const now = (here.find((p) => p.focused) ?? here[0])?.cwd;
+    const folders = [now, ...mine.map((p) => p.cwd), space.folder].filter(Boolean);
+    return { space, folders: [...new Set(folders)] };
+  });
 }
 
-// The space on this computer for a folder: made there, else one with a terminal in it.
-function spaceFor(path, local) {
-  const made = local.find(({ space }) => space.folder === path);
+// The space for a folder on a machine (null: this computer): made there, else one with a
+// terminal in it. Other machines use "/" between folders.
+function spaceFor(path, open, machine) {
+  const mine = open.filter(({ space }) => (space.machine ?? null) === machine);
+  const made = mine.find(({ space }) => space.folder === path);
   if (made) return made.space;
-  const inside = (cwd) => cwd === path || cwd.startsWith(join(path, ""));
-  return local.find(({ folders }) => folders.some(inside))?.space;
+  const prefix = machine ? `${path}/` : join(path, "");
+  const inside = (cwd) => cwd === path || cwd.startsWith(prefix);
+  return mine.find(({ folders }) => folders.some(inside))?.space;
 }
 
 // The path helpers for this computer's home folder (paths.js).
@@ -508,7 +562,14 @@ const base = (p) => paths().base(p);
 // A row ready for matching: its key, and its name and shown path in lowercase.
 function prepare(r) {
   const key = r.machine ? `${r.machine}:${r.path}` : r.path;
-  return { ...r, key, lname: r.name.toLowerCase(), lpath: short(r.path).toLowerCase() };
+  const shown = r.machine ? shortOn(r.path, r.home ?? null) : short(r.path);
+  return { ...r, key, lname: r.name.toLowerCase(), lpath: shown.toLowerCase() };
+}
+
+// A path on another machine with its home shown as ~.
+function shortOn(path, there) {
+  if (!there) return path;
+  return path === there ? "~" : path.startsWith(`${there}/`) ? `~/${path.slice(there.length + 1)}` : path;
 }
 
 function storageGet(key) {
