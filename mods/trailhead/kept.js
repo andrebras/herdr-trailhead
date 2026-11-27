@@ -2,6 +2,7 @@
 // look for changes afterwards. Knows nothing about Herdr, so tests can run it under node.
 
 import { projectKey } from "./keys.js";
+import { isObject } from "./settings.js";
 
 const VERSION = 1;
 
@@ -41,19 +42,26 @@ export function readKept(text) {
   try {
     const data = JSON.parse(text);
     if (data?.version !== VERSION || !Array.isArray(data.rows)) return null;
-    const str = (/** @type {unknown} */ v) => typeof v === "string";
-    return data.rows
-      .filter((/** @type {any} */ r) => r && str(r.path) && str(r.kind) && str(r.name))
-      .map((/** @type {any} */ r) => ({
-        path: r.path,
-        kind: r.kind,
-        name: r.name,
-        logs: str(r.logs) ? r.logs : null,
-        repo: str(r.repo) ? r.repo : null,
-        machine: str(r.machine) ? r.machine : null,
-        home: str(r.home) ? r.home : null,
-        touched: typeof r.touched === "number" ? r.touched : null,
-      }));
+    /** @type {(v: unknown) => v is string} */
+    const str = (v) => typeof v === "string";
+    /** @type {unknown[]} */
+    const rows = data.rows;
+    return rows.filter(isObject).flatMap((r) =>
+      str(r.path) && str(r.kind) && str(r.name)
+        ? [
+            {
+              path: r.path,
+              kind: r.kind,
+              name: r.name,
+              logs: str(r.logs) ? r.logs : null,
+              repo: str(r.repo) ? r.repo : null,
+              machine: str(r.machine) ? r.machine : null,
+              home: str(r.home) ? r.home : null,
+              touched: typeof r.touched === "number" ? r.touched : null,
+            },
+          ]
+        : [],
+    );
   } catch {
     return null;
   }

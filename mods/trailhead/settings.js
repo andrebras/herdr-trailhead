@@ -42,11 +42,11 @@ export function readSettings(trailheadJson, projectsJson) {
   const problems = [];
   const own = parse(trailheadJson, "trailhead.json", problems);
   const old = parse(projectsJson, "projects.json", problems);
-  if (own !== undefined && (typeof own !== "object" || own === null || Array.isArray(own))) {
+  if (own !== undefined && !isObject(own)) {
     problems.push('trailhead.json must hold an object, such as {"agent": ["claude"]}');
   }
-  const mine = typeof own === "object" && own !== null && !Array.isArray(own) ? own : {};
-  const fallback = typeof old === "object" && old !== null && !Array.isArray(old) ? old : {};
+  const mine = isObject(own) ? own : {};
+  const fallback = isObject(old) ? old : {};
   /** @param {string} key */
   const pick = (key) => (key in mine ? mine[key] : fallback[key]);
 
@@ -92,10 +92,19 @@ export function readSettings(trailheadJson, projectsJson) {
 }
 
 /**
+ * Whether a parsed JSON value is an object (not an array), whose keys can be read.
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+export function isObject(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
  * @param {string | null} text
  * @param {string} name
  * @param {string[]} problems
- * @returns {any}
+ * @returns {unknown}
  */
 function parse(text, name, problems) {
   if (text === null) return undefined;
@@ -116,4 +125,27 @@ function parse(text, name, problems) {
 export function presentRoots(roots, names) {
   const here = new Set(names);
   return roots.filter((r) => here.has(r.replace(/^~[/\\]/, "")));
+}
+
+/**
+ * Reads and checks the settings: trailhead.json, then projects.json, both in Herdr's folder.
+ * `read` gives a file's text, null when it isn't there, and rejects when it can't be read:
+ * a missing file means the defaults, one that can't be read is reported.
+ * @param {(name: string) => Promise<string | null>} read
+ * @returns {Promise<{ settings: Settings, problems: string[], defaultRoots: boolean }>}
+ */
+export async function loadSettings(read) {
+  /** @type {string[]} */
+  const unreadable = [];
+  const text = async (/** @type {string} */ name) => {
+    try {
+      return await read(name);
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e);
+      unreadable.push(`Can't read ${name} in Herdr's folder (${why}); using the defaults`);
+      return null;
+    }
+  };
+  const result = readSettings(await text("trailhead.json"), await text("projects.json"));
+  return { ...result, problems: [...unreadable, ...result.problems] };
 }
