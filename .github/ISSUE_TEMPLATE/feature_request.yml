@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for the idea. Please search the existing issues and the roadmap in the README first.
+        Thank you for the idea. Please search the existing issues first.
   - type: textarea
     id: problem
     attributes:
