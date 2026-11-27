@@ -40,20 +40,20 @@ To try your change in Herdr, copy `mods/trailhead` into `~/.config/herdr-app/mod
 
 `herdr-app check` loads the mod in Herdr and reports any error. `bin/ci` runs it with a temporary Herdr folder, so your own setup is not touched.
 
-GitHub's CI (continuous integration: the checks that run on every pull request) cannot run `herdr-app check`, because Herdr is not installed there. So run `bin/ci` on your own computer, and make sure it passes, before you open a pull request.
+GitHub's CI cannot run `herdr-app check`, because Herdr is not installed there. Run `bin/ci` on your own computer, and make sure it passes, before you open a pull request.
 
 ## Tests
 
-The matching and path logic lives in `mods/trailhead/match.js` and `mods/trailhead/paths.js`. These files do not use Herdr, so Node.js can test them. Their tests are in `tests/`.
+`mods/trailhead/main.js` holds the view and everything that talks to Herdr. The other modules there import nothing from Herdr, so Node.js can test them: matching and order (`match.js`), paths (`paths.js`), settings (`settings.js`), the list kept between opens (`kept.js`), the commands each key sends (`actions.js`), the search on other machines (`remote.js`), open spaces and rows (`spaces.js`) and row keys (`keys.js`). Their tests are in `tests/`.
 
-When you change how Trailhead matches, orders or ages rows, or how it reads and shortens paths, add or update a test in the same pull request. A bug fix comes with a test that fails without the fix.
+When you change one of these modules, add or update a test in the same pull request. A bug fix comes with a test that fails without the fix.
 
 ## Send a change
 
 1. Create a branch from `main`. Never push to `main` directly: every change goes through a pull request.
 2. Make your change, with tests where they apply.
 3. Run `bin/ci` and fix anything it reports.
-4. Update the [README](README.md) when you change what a person sees or can do. Add a line to the `Unreleased` section of the [changelog](CHANGELOG.md) when the change is one people will notice.
+4. Update the [README](README.md) when you change what a person sees or can do, and [RECIPE.md](RECIPE.md) when you change how the popup looks or behaves. Add a line to the `Unreleased` section of the [changelog](CHANGELOG.md) when the change is one people will notice.
 5. Push your branch and open a pull request. Fill in the template: what the change is, why, what changed, how you tested it, and what the reviewer should look at.
 
 Keep pull requests small: one change each. A small pull request is easier to review and quicker to merge. Split a large change into several pull requests that each work on their own.
@@ -63,7 +63,7 @@ Keep pull requests small: one change each. A small pull request is easier to rev
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org): a type, a colon, and a short description. Write them in lowercase, on a single line, with no body and no trailers.
 
 ```text
-feat: list folders from projects.json
+feat: show how many projects match
 fix: keep the selection on the last row after a filter
 docs: explain the depth setting
 test: cover paths on windows drives
