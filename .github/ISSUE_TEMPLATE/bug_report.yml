@@ -37,15 +37,13 @@ body:
     id: settings
     attributes:
       label: Your settings
-      description: Your trailhead.json (and projects.json, if you have one) from Herdr's folder. Replace real paths with invented ones.
+      description: Your trailhead.json from Herdr's folder. Replace real paths with invented ones.
       render: json
   - type: input
     id: trailhead-version
     attributes:
       label: Trailhead version
-      description: The release, or the commit you installed from.
-    validations:
-      required: true
+      description: The release (such as 0.1.0) or the commit you installed from, if you know it.
   - type: input
     id: herdr-version
     attributes:
