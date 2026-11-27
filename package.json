@@ -1,6 +1,26 @@
 {
   "name": "herdr-trailhead",
+  "version": "0.0.0",
   "private": true,
+  "description": "Project picker for the Herdr desktop app",
+  "license": "Apache-2.0",
+  "repository": "github:andrebras/herdr-trailhead",
   "type": "module",
-  "scripts": { "test": "node --test tests/*.test.mjs" }
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.16.0",
+    "globals": "17.14.0",
+    "prettier": "3.10.1",
+    "typescript": "7.0.2"
+  }
 }
