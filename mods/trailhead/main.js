@@ -31,7 +31,8 @@ import { platform } from "os";
 import { spaces, panes, run, theme, props, closeOverlay, home, appHome, exec, checking, machines } from "herdr";
 import { makePaths } from "./paths.js";
 import {
-  best,
+  rankIndex,
+  bestIn,
   ordered,
   age,
   reflogTime,
@@ -185,13 +186,20 @@ export default class Trailhead extends View {
     closeOverlay(props().overlay);
   }
 
-  // The rows to show. With nothing typed, in the order `ordered` explains (the previous
-  // project first); typed, the best matches first.
+  // The rows to show, worked out once per list and query: a render, a key and Enter all ask.
   rows() {
     const rows = this.allRows();
+    const built = this.built;
+    if (built.shown?.filter !== this.filter) built.shown = { filter: this.filter, rows: this.pick(rows, built) };
+    return built.shown.rows;
+  }
+
+  // With nothing typed, in the order `ordered` explains (the previous project first); typed,
+  // the best matches first. The ranking index is built on the first key, once per list.
+  pick(rows, built) {
     const typed = this.filter.trim();
     const f = typed.toLowerCase();
-    if (!f) return ordered(rows, this.recent, this.current).slice(0, SHOWN);
+    if (!f) return ordered(rows, this.recent, this.current, SHOWN);
     // A typed path: that folder first, then what is inside it.
     if (isPath(typed)) {
       const path = trim(expand(typed));
@@ -202,8 +210,13 @@ export default class Trailhead extends View {
       return [first, ...inside].slice(0, SHOWN);
     }
     // The current space was only saved for jumping back; it gets no recent-pick bonus.
-    const picks = this.recent.filter((k) => k !== this.current);
-    return best(rows, f, SHOWN, short, picks, this.zoxide);
+    built.index ??= rankIndex(
+      rows,
+      short,
+      this.recent.filter((k) => k !== this.current),
+      this.zoxide,
+    );
+    return bestIn(built.index, f, SHOWN);
   }
 
   // Every row, built again only when the projects, the spaces or the machines change, not on
