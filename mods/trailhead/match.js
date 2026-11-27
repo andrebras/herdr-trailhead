@@ -52,16 +52,81 @@ export function score(f, name, path) {
  * @param {string} text
  */
 export function inOrder(f, text) {
-  let i = 0;
-  for (const c of text) if (c === f[i]) i++;
-  return i === f.length;
+  let at = -1;
+  for (let i = 0; i < f.length; i++) {
+    at = text.indexOf(f[i], at + 1);
+    if (at < 0) return false;
+  }
+  return true;
 }
 
-// The best `shown` rows for a lowercase query, best first; ties keep their order.
-// `display(path)` gives the path as shown (~/...); `recent` the recent picks, newest first;
-// `zoxide` a small bonus per path from zoxide's ranking (see zoxideBonus). One pass, and
-// only the matches are sorted, so a key press stays well under a frame with 5,000 rows.
 /**
+ * A list made ready for ranking, once per list rather than once per key: each row's name and
+ * shown path in lowercase, and its bonus (see `bonus`). `display(path)` gives the path as shown
+ * (~/...); `recent` the recent picks, newest first; `zoxide` a small bonus per path from
+ * zoxide's ranking (see zoxideBonus). `last` remembers the last query and the rows it matched.
+ * @template {Row} R
+ * @typedef {{ rows: R[], names: string[], paths: string[], bonus: number[],
+ *   last: { f: string, hits: number[] } | null }} RankIndex
+ */
+
+/**
+ * @template {Row} R
+ * @param {R[]} rows
+ * @param {(path: string) => string} display
+ * @param {string[]} [recent]
+ * @param {Map<string, number>} [zoxide]
+ * @returns {RankIndex<R>}
+ */
+export function rankIndex(rows, display, recent = [], zoxide = new Map()) {
+  const at = places(recent);
+  return {
+    rows,
+    names: rows.map((r) => r.lname ?? r.name.toLowerCase()),
+    paths: rows.map((r) => r.lpath ?? display(r.path).toLowerCase()),
+    bonus: rows.map((r) => bonus(r, at, zoxide)),
+    last: null,
+  };
+}
+
+/**
+ * The best `shown` rows for a lowercase query, best first; ties keep the list's order.
+ * One pass that keeps only the best few, so no sort of every match. When the query only adds
+ * letters to the last one, only the rows that matched it are looked at again: nothing else
+ * can match a longer query.
+ * @template {Row} R
+ * @param {RankIndex<R>} index
+ * @param {string} f
+ * @param {number} shown
+ * @returns {R[]}
+ */
+export function bestIn(index, f, shown) {
+  const { names, paths } = index;
+  const from = index.last && f.startsWith(index.last.f) ? index.last.hits : null;
+  const n = from ? from.length : names.length;
+  /** @type {number[]} */
+  const hits = [];
+  /** @type {{ i: number, s: number }[]} */
+  const top = [];
+  for (let j = 0; j < n; j++) {
+    const i = from ? from[j] : j;
+    const m = score(f, names[i], paths[i]);
+    if (m === 0) continue;
+    hits.push(i);
+    const s = m + index.bonus[i];
+    if (top.length === shown && s <= top[shown - 1].s) continue;
+    // Rows come in list order, so a tie stays behind the rows already kept.
+    let k = top.length;
+    while (k > 0 && top[k - 1].s < s) k--;
+    top.splice(k, 0, { i, s });
+    if (top.length > shown) top.pop();
+  }
+  index.last = { f, hits };
+  return top.map((x) => index.rows[x.i]);
+}
+
+/**
+ * The best `shown` rows for a lowercase query, for a list ranked once (see rankIndex).
  * @template {Row} R
  * @param {R[]} rows
  * @param {string} f
@@ -72,16 +137,7 @@ export function inOrder(f, text) {
  * @returns {R[]}
  */
 export function best(rows, f, shown, display, recent = [], zoxide = new Map()) {
-  const at = places(recent);
-  /** @type {{ r: R, s: number, i: number }[]} */
-  const hits = [];
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    const m = score(f, r.lname ?? r.name.toLowerCase(), r.lpath ?? display(r.path).toLowerCase());
-    if (m > 0) hits.push({ r, s: m + bonus(r, at, zoxide), i });
-  }
-  hits.sort((a, b) => b.s - a.s || a.i - b.i);
-  return hits.slice(0, shown).map((x) => x.r);
+  return bestIn(rankIndex(rows, display, recent, zoxide), f, shown);
 }
 
 // With nothing typed, so Cmd+O then Enter jumps back to the project you were in before:
@@ -96,42 +152,78 @@ export function best(rows, f, shown, display, recent = [], zoxide = new Map()) {
  * @param {R[]} rows
  * @param {string[]} recent keys of recent picks, newest first
  * @param {string | null} [current] the current space's row key
+ * @param {number} [limit] how many to return: the order is only worked out for those
  * @returns {R[]}
  */
-export function ordered(rows, recent, current = null) {
+export function ordered(rows, recent, current = null, limit = Infinity) {
   /** @type {Map<string, number>} */
   const pick = new Map();
   recent.forEach((k, i) => {
     if (k !== current && !pick.has(k)) pick.set(k, i);
   });
   const here = rows.find((r) => keyOf(r) === current)?.pkey ?? null;
-  const ranked = rows.map((r, i) => ({ r, i, at: keyOf(r) === current ? undefined : recency(r, pick, here) }));
+  /** @type {{ r: R, i: number, at: number | undefined }[][]} the five groups above */
+  const groups = [[], [], [], [], []];
+  /** @type {{ r: R, i: number, at: number | undefined } | null} */
   let previous = null;
-  let best = Infinity;
-  for (const x of ranked) {
-    if (x.at !== undefined && x.at < best) [previous, best] = [x, x.at];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (keyOf(r) === current) {
+      groups[4].push({ r, i, at: undefined });
+      continue;
+    }
+    const x = { r, i, at: recency(r, pick, here) };
+    if (x.at !== undefined && (previous === null || x.at < (previous.at ?? Infinity))) previous = x;
+    groups[r.space ? 1 : x.at !== undefined ? 2 : 3].push(x);
   }
-  const group = (/** @type {{ r: R, at: number | undefined }} */ x) => {
-    if (keyOf(x.r) === current) return 4;
-    if (x === previous) return 0;
-    if (x.r.space) return 1;
-    return x.at !== undefined ? 2 : 3;
-  };
-  return ranked
-    .map((x) => ({ ...x, g: group(x) }))
-    .sort((a, b) => {
-      if (a.g !== b.g) return a.g - b.g;
-      if (a.g === 2) return (a.at ?? 0) - (b.at ?? 0);
-      if (a.g === 3) {
-        const ta = a.r.touched ?? null;
-        const tb = b.r.touched ?? null;
-        if (ta !== null && tb !== null && ta !== tb) return tb - ta;
-        if ((ta === null) !== (tb === null)) return ta === null ? 1 : -1;
-        return a.r.name.localeCompare(b.r.name);
-      }
-      return a.i - b.i;
-    })
-    .map((x) => x.r);
+  if (previous) {
+    groups[0].push(previous);
+    for (const g of [1, 2]) groups[g] = groups[g].filter((x) => x !== previous);
+  }
+  groups[2].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  const head = [...groups[0], ...groups[1], ...groups[2]];
+  const rest = firstOf(groups[3], Math.max(0, limit - head.length), byChange);
+  return [...head, ...rest, ...groups[4]].slice(0, limit).map((x) => x.r);
+}
+
+/**
+ * Most recently changed first; those with no known change last, by name; then list order.
+ * @param {{ r: Row & { touched?: number | null }, i: number }} a
+ * @param {{ r: Row & { touched?: number | null }, i: number }} b
+ */
+function byChange(a, b) {
+  const ta = a.r.touched ?? null;
+  const tb = b.r.touched ?? null;
+  if (ta !== tb) {
+    if (ta === null) return 1;
+    if (tb === null) return -1;
+    return tb - ta;
+  }
+  const na = a.r.lname ?? a.r.name.toLowerCase();
+  const nb = b.r.lname ?? b.r.name.toLowerCase();
+  return na < nb ? -1 : na > nb ? 1 : a.i - b.i;
+}
+
+/**
+ * The first `k` of `list` in `cmp`'s order, without sorting the whole list when `k` is small.
+ * @template T
+ * @param {T[]} list
+ * @param {number} k
+ * @param {(a: T, b: T) => number} cmp
+ * @returns {T[]}
+ */
+function firstOf(list, k, cmp) {
+  if (k >= list.length) return [...list].sort(cmp);
+  /** @type {T[]} */
+  const out = [];
+  for (const x of list) {
+    if (out.length === k && (k === 0 || cmp(x, out[k - 1]) >= 0)) continue;
+    let at = out.length;
+    while (at > 0 && cmp(x, out[at - 1]) < 0) at--;
+    out.splice(at, 0, x);
+    if (out.length > k) out.pop();
+  }
+  return out;
 }
 
 // Among similar matches, an open space comes first, more so when an agent there needs you
