@@ -2,7 +2,7 @@
 
 Thank you for helping. This guide explains how to set up the project, which checks a change must pass, and how to send it.
 
-By taking part, you agree to follow the [code of conduct](CODE_OF_CONDUCT.md). To report a security problem, do not open an issue: follow [SECURITY.md](SECURITY.md).
+To report a security problem, do not open an issue: follow [SECURITY.md](SECURITY.md).
 
 ## Report a bug or ask for a feature
 
