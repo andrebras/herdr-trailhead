@@ -6,24 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-27
+
+The first release.
+
 ### Added
 
-- Jump back: with nothing typed, the project you were in before is first and selected, so Cmd+O then Enter goes back to it; the current space moves to the bottom.
-- With nothing typed, projects below your open spaces and recent picks are ordered by when they last changed, newest first, instead of by name.
-- Other machines: projects on every machine Herdr is connected to, searched at the same time with a 2-second limit each, with a Machine column.
-- Alt+Enter (or Shift+Enter) makes a new space even if one is open; Cmd+Enter (Ctrl+Enter on Linux and Windows) also starts your agent, `claude` unless the `agent` setting says otherwise.
-- An error line at the top of the popup for bad settings, roots it can't read and a missing agent program.
-- Settings live in `trailhead.json` in Herdr's folder, where updating the mod never resets them; `projects.json` still works for the ones it doesn't set.
-- Opens instantly: the last list shows in the first frame, then updates in place without moving your selection.
-- Ranking: an open space where an agent is blocked comes before other open spaces, and zoxide's ranking breaks ties when zoxide is installed.
-- A project picker: Cmd+O opens a popup that lists your open spaces and the git repositories under your folders. Enter goes to the project's space, or makes a new space in its folder.
-- Fuzzy matching: type a few letters of a project's name or path to find it.
-- Typed paths, such as `~/code/acme-web`, open any folder.
-- Settings: the folders to search (`roots`), how deep to search them (`depth`), and folders to list as they are (`folders`).
-- A status dot on each open space, in the colour of its agents' status: working, blocked, done or idle.
-- A kind column: repo, worktree or folder.
-- A last-change column: how long ago each repository last had a commit, checkout or pull, read from git's reflog.
-- Recent picks: with nothing typed, the projects you picked last come right after your open spaces.
-- Unit tests for matching and path handling, and CI (continuous integration) that runs them on every pull request.
+- Cmd+O opens a popup that lists the git repos and worktrees under your code folders, the folders you list, and your open spaces. Enter goes to the project's space, or makes one in its folder.
+- Jump back: with nothing typed, the project you were in before is first and selected, so Cmd+O then Enter takes you back.
+- With nothing typed, open spaces and recent picks come first, then the rest by last change, newest first.
+- Fuzzy matching on names and paths, with the matched letters highlighted. Open spaces, spaces where an agent is blocked, recent picks and, when installed, zoxide's ranking break ties.
+- Each row shows its space's agent status as a coloured dot, its kind (repo, worktree or folder) and how long ago it last changed.
+- When two projects share a folder name, each shows as much of its path as tells them apart, such as `work/api` and `home/api`.
+- Alt+Enter (or Shift+Enter) makes a new space even if one is open.
+- Cmd+Enter (Ctrl+Enter on Linux and Windows) also starts your agent there: `claude`, or the `agent` setting. `~` in it means the home folder.
+- Type a path, such as `~/code/app`, to open any folder.
+- Projects on the other machines Herdr is connected to, in a Machine column. A machine's projects hide while it can't be reached, and leave the list when you remove it from Herdr.
+- The last list shows as soon as the popup opens, then updates in place without moving your selection.
+- Settings in `trailhead.json` in Herdr's folder, so updating the mod never resets them: `roots`, `depth`, `folders`, `agent` and `zoxide`.
+- Without `roots`, the usual code folders you have are searched, such as `~/code` or `~/projects`, and the ones you don't have are skipped quietly.
+- One red line at the top of the popup for a bad setting, a root it can't read, another machine it couldn't search, or an agent that isn't installed.
 
-[Unreleased]: https://github.com/andrebras/herdr-trailhead/commits/main
+[Unreleased]: https://github.com/andrebras/herdr-trailhead/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/andrebras/herdr-trailhead/releases/tag/v0.1.0
