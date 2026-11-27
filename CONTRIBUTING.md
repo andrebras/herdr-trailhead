@@ -29,14 +29,15 @@ To try your change in Herdr, copy `mods/trailhead` into `~/.config/herdr-app/mod
 
 ## Checks
 
-| Command                | What it does                                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `npm test`             | Runs the unit tests.                                                                                              |
-| `npm run lint`         | Checks the code for common mistakes.                                                                              |
-| `npm run format`       | Formats the code, Markdown files included.                                                                        |
-| `npm run format:check` | Checks the formatting without changing anything.                                                                  |
-| `npm run typecheck`    | Checks the types.                                                                                                 |
-| `bin/ci`               | Runs the tests, the lint, the formatting check and the type check, and `herdr-app check` when Herdr is installed. |
+| Command                | What it does                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `npm test`             | Runs the unit tests.                                                                                        |
+| `npm run lint`         | Checks the code for common mistakes.                                                                        |
+| `npm run format`       | Formats the code, Markdown files included.                                                                  |
+| `npm run format:check` | Checks the formatting without changing anything.                                                            |
+| `npm run typecheck`    | Checks the types; `main.js` too when Herdr is installed.                                                    |
+| `bin/bench-herdr`      | Times the ranking inside Herdr with 5,000 projects; each case must take under 16 ms. Skipped without Herdr. |
+| `bin/ci`               | Runs everything above, and loads the mod with `herdr-app check` when Herdr is installed.                    |
 
 `herdr-app check` loads the mod in Herdr and reports any error. `bin/ci` runs it with a temporary Herdr folder, so your own setup is not touched.
 
