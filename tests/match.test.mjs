@@ -12,6 +12,7 @@ import {
   pieces,
   uniqueNames,
   worktreeRepo,
+  zoxideBonus,
 } from "../mods/trailhead/match.js";
 
 test("ranks a name prefix over a substring over letters in order over the path", () => {
@@ -120,4 +121,31 @@ test("worktreeRepo reads the repo folder from a worktree's gitdir", () => {
   assert.equal(worktreeRepo("/h/code/acme/.git/worktrees/login"), "/h/code/acme");
   assert.equal(worktreeRepo("C:\\code\\acme\\.git\\worktrees\\login"), "C:\\code\\acme");
   assert.equal(worktreeRepo("/h/elsewhere/gitdir"), null);
+});
+
+test("a space where an agent is blocked ranks above other open spaces", () => {
+  const open = { name: "a", path: "/a", space: { status: "working" } };
+  const blocked = { name: "b", path: "/b", space: { status: "blocked" } };
+  assert.ok(bonus(blocked, []) > bonus(open, []));
+});
+
+test("zoxideBonus gives the best-ranked paths the most, and stops after 100", () => {
+  const lines = Array.from({ length: 120 }, (_, i) => `  ${200 - i}.0 /p/${i}`).join("\n");
+  const z = zoxideBonus(lines);
+  assert.equal(z.get("/p/0"), 5);
+  assert.equal(z.get("/p/99"), 1);
+  assert.equal(z.has("/p/100"), false);
+  assert.equal(zoxideBonus("").size, 0);
+});
+
+test("zoxide only breaks ties between similar matches", () => {
+  const rows = [
+    { name: "acme-a", path: "/a" },
+    { name: "acme-b", path: "/b" },
+  ];
+  const z = new Map([["/b", 5]]);
+  assert.deepEqual(
+    best(rows, "acme", 12, (p) => p, [], z).map((r) => r.path),
+    ["/b", "/a"],
+  );
 });
