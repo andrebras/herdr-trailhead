@@ -1,5 +1,5 @@
 // Trailhead: open a project, or get back to it. The git repos under your folders, as
-// tmux-sessionizer lists them. Type to filter, ↑/↓ and Enter: go to the project's space,
+// tmux-sessionizer lists them. Type to filter, ↑/↓ (or Ctrl+P/N) and Enter: go to the project's space,
 // or make one there named after the folder. With nothing typed: open spaces, then your
 // recent picks, then the rest by name. Each row shows its space's agent status, its kind
 // (repo, worktree, folder) and when it last changed (its reflog's last entry: a commit,
@@ -18,7 +18,7 @@ import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { readFile, readdir } from "fs/promises";
 import { spaces, panes, run, theme, props, closeOverlay, home, appHome } from "herdr";
 import { makePaths } from "./paths.js";
-import { best, ordered, age, reflogTime } from "./match.js";
+import { best, ordered, age, reflogTime, positions, pieces, uniqueNames, worktreeRepo } from "./match.js";
 
 const DEFAULTS = { roots: ["~/Lab"], depth: 3, folders: [] };
 // How many matches show: the best ones, as a fuzzy finder does.
@@ -33,7 +33,7 @@ export default class Trailhead extends View {
   init(_props, cx) {
     this.filter = "";
     this.at = 0;
-    this.repos = null; // [{ path, kind, logs }], once found
+    this.repos = null; // [{ path, kind, logs, name }], once found
     this.touched = new Map(); // path → seconds since 1970 of its last commit, checkout or pull
     this.recent = readRecent();
     this.input = InputState.new({ placeholder: "Open a project…" });
@@ -47,7 +47,12 @@ export default class Trailhead extends View {
     cx.timer.after(600, () => this.input.focus());
     this.handle = cx.focus_handle();
     cx.spawn(async (cx) => {
-      this.repos = await findProjects(await config());
+      const found = await findProjects(await config());
+      // Named after their folder; a worktree after its repo too ("acme/login"); and where two
+      // names clash, after as much of the path as tells them apart.
+      const label = (r) => (r.repo ? `${base(r.repo)}/${base(r.path)}` : base(r.path));
+      const names = uniqueNames(found.map((r) => ({ path: r.path, label: label(r) })));
+      this.repos = found.map((r, i) => ({ ...r, name: names[i] }));
       cx.notify();
       // When each repo last changed, read after the list shows so it never waits on this.
       for (const r of this.repos) {
@@ -74,7 +79,7 @@ export default class Trailhead extends View {
       return row({ kind: kindOf.get(path) ?? "space", space, name: space.name, path });
     });
     for (const r of repos) {
-      if (!spaceFor(r.path, local)) rows.push(row({ kind: r.kind, name: base(r.path), path: r.path }));
+      if (!spaceFor(r.path, local)) rows.push(row({ kind: r.kind, name: r.name, path: r.path }));
     }
     const typed = this.filter.trim();
     const f = typed.toLowerCase();
@@ -85,7 +90,7 @@ export default class Trailhead extends View {
       const key = (p) => p.toLowerCase();
       const same = rows.find((r) => key(r.path) === key(path));
       const inside = rows.filter((r) => r !== same && key(r.path).startsWith(key(join(path, ""))));
-      const first = same ?? { kind: "typed", name: base(path), path, touched: null };
+      const first = same ?? { kind: "typed", name: short(path), path, touched: null };
       return [first, ...inside].slice(0, SHOWN);
     }
     return best(rows, f, SHOWN, short, this.recent);
@@ -146,6 +151,21 @@ export default class Trailhead extends View {
             .child(r.kind === "typed" ? "+" : "");
     const kindText = (r) =>
       r.kind === "typed" ? (missing ? "no such folder" : "open folder") : r.kind === "space" ? "" : r.kind;
+    // The name, with the letters that match what you typed in the accent colour.
+    const typed = this.filter.trim().toLowerCase();
+    const name = (r) =>
+      h_flex()
+        .flex_1()
+        .min_w(0)
+        .overflow_hidden()
+        .text_color(t.foreground)
+        .children(
+          pieces(r.name, r.kind === "typed" ? [] : positions(typed, r.name)).map((p) =>
+            p.hit
+              ? div().flex_none().font_semibold().text_color(t.accent).child(p.text)
+              : div().flex_none().child(p.text),
+          ),
+        );
     const row = (r, i) =>
       h_flex()
         .id(`th-${i}`)
@@ -160,8 +180,7 @@ export default class Trailhead extends View {
         .hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => cx.spawn((cx) => this.go(r, cx)))
         .child(dot(r))
-        .child(div().flex_none().max_w(220).truncate().text_color(t.foreground).child(r.name))
-        .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(t.dim).child(short(r.path)))
+        .child(name(r))
         .child(
           div()
             .w(72)
@@ -188,11 +207,11 @@ export default class Trailhead extends View {
       .bg(t.popover)
       .text_size(13)
       .on_key_down((e, cx) => {
-        const k = e.key;
+        const k = e.keystroke;
         if (k === "escape") return this.close();
         if (!rows.length) return;
-        if (k === "down") this.at = (this.at + 1) % rows.length;
-        else if (k === "up") this.at = (this.at + rows.length - 1) % rows.length;
+        if (k === "down" || k === "ctrl-n") this.at = (this.at + 1) % rows.length;
+        else if (k === "up" || k === "ctrl-p") this.at = (this.at + rows.length - 1) % rows.length;
         else return;
         cx.stop_propagation();
         cx.notify();
@@ -251,9 +270,9 @@ async function config() {
   }
 }
 
-// Every repo under the roots, plus the listed folders, each as { path, kind, logs }:
+// Every repo under the roots, plus the listed folders, each as { path, kind, logs, repo }:
 // kind "repo" (a .git folder), "worktree" (a .git file pointing at its repo's) or
-// "folder"; logs is the reflog that says when it last changed. A repo's own folders
+// "folder"; logs is the reflog that says when it last changed; repo, a worktree's repo. A repo's own folders
 // aren't searched, so a submodule or a vendored checkout inside it is left out.
 async function findProjects({ roots, depth, folders }) {
   const found = [];
@@ -300,7 +319,8 @@ async function worktree(dir) {
     const text = await readFile(join(dir, ".git"), "utf8");
     const gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(text)?.[1];
     const abs = gitdir && (isPath(gitdir) ? gitdir : join(dir, gitdir));
-    return { path: dir, kind: "worktree", logs: abs ? join(join(abs, "logs"), "HEAD") : null };
+    const repo = abs ? worktreeRepo(abs) : null;
+    return { path: dir, kind: "worktree", repo, logs: abs ? join(join(abs, "logs"), "HEAD") : null };
   } catch {
     return { path: dir, kind: "worktree", logs: null };
   }

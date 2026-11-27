@@ -114,3 +114,71 @@ export function reflogTime(text) {
   }
   return null;
 }
+
+/**
+ * Where a lowercase query matches `text`, as character positions, for highlighting:
+ * the first place it appears whole, else its letters in order; empty when it doesn't match.
+ * @param {string} f
+ * @param {string} text
+ * @returns {number[]}
+ */
+export function positions(f, text) {
+  if (!f) return [];
+  const lower = text.toLowerCase();
+  const at = lower.indexOf(f);
+  if (at >= 0) return Array.from({ length: f.length }, (_, i) => at + i);
+  const found = [];
+  for (let i = 0; i < lower.length && found.length < f.length; i++) if (lower[i] === f[found.length]) found.push(i);
+  return found.length === f.length ? found : [];
+}
+
+/**
+ * `text` cut into pieces that alternate between matched and not, for drawing.
+ * @param {string} text
+ * @param {number[]} hits positions from `positions`
+ * @returns {{ text: string, hit: boolean }[]}
+ */
+export function pieces(text, hits) {
+  const on = new Set(hits);
+  /** @type {{ text: string, hit: boolean }[]} */
+  const out = [];
+  for (let i = 0; i < text.length; i++) {
+    const hit = on.has(i);
+    const last = out[out.length - 1];
+    if (last && last.hit === hit) last.text += text[i];
+    else out.push({ text: text[i], hit });
+  }
+  return out;
+}
+
+/**
+ * A name for each path: its preferred label when no other path has that label, else the
+ * shortest end of its path that no other path in the clash shares ("work/api", "home/api").
+ * @param {{ path: string, label: string }[]} items
+ * @returns {string[]}
+ */
+export function uniqueNames(items) {
+  const parts = items.map((x) => x.path.split(/[/\\]/).filter(Boolean));
+  const count = new Map();
+  for (const x of items) count.set(x.label, (count.get(x.label) ?? 0) + 1);
+  return items.map((x, i) => {
+    if (count.get(x.label) === 1) return x.label;
+    const mine = parts[i];
+    const rivals = items.map((_, j) => j).filter((j) => j !== i && items[j].label === x.label);
+    for (let n = 2; n <= mine.length; n++) {
+      const tail = mine.slice(-n).join("/");
+      if (rivals.every((j) => parts[j].slice(-n).join("/") !== tail)) return tail;
+    }
+    return mine.join("/") || x.label;
+  });
+}
+
+/**
+ * The repo folder a worktree belongs to, from its gitdir ("<repo>/.git/worktrees/<name>").
+ * @param {string} gitdir
+ * @returns {string | null}
+ */
+export function worktreeRepo(gitdir) {
+  const m = /^(.*?)[/\\]\.git[/\\]worktrees[/\\][^/\\]+[/\\]?$/.exec(gitdir);
+  return m ? m[1] : null;
+}
