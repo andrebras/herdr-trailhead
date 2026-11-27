@@ -1,0 +1,76 @@
+name: Bug report
+description: Something in Trailhead does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Please search the existing issues first.
+        For a security problem, do not use this form: follow SECURITY.md instead.
+        Use invented project names and paths (such as `acme-web` or `~/code/notes`) in what you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What went wrong, in plain words.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The steps that make the bug happen, one per line.
+      placeholder: |
+        1. Press Cmd+O.
+        2. Type "acme".
+        3. Press Enter.
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Your projects.json
+      description: The content of projects.json in Herdr's folder, if you have one. Replace real paths with invented ones.
+      render: json
+  - type: input
+    id: trailhead-version
+    attributes:
+      label: Trailhead version
+      description: The release, or the commit you installed from.
+    validations:
+      required: true
+  - type: input
+    id: herdr-version
+    attributes:
+      label: Herdr version
+      description: The output of `herdr-app --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+  - type: textarea
+    id: check
+    attributes:
+      label: Output of herdr-app check
+      description: The output of `herdr-app check ~/.config/herdr-app/mods/trailhead`.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots or other details that help. Use invented project names in screenshots.
