@@ -2,17 +2,27 @@
 // Herdr (main.js passes in what Herdr reports), so tests can run it under node.
 
 import { projectKey, spaceKey } from "./keys.js";
+import { makePaths } from "./paths.js";
 
 /**
  * The parts of a space, a terminal and a machine that Trailhead uses (Herdr's SpaceInfo,
  * PaneInfo and machines() entries have more).
  * @typedef {{ id: string, name: string, folder: string, machine: string | null, active: boolean,
- *   status: string | null, tabs: { id: string, active: boolean }[] }} Space
+ *   status: "working" | "blocked" | "done" | "idle" | null, tabs: { id: string, active: boolean }[] }} Space
  * @typedef {{ tab: string, cwd: string | null, focused: boolean }} Pane
  * @typedef {{ name: string | null, layout: string }} Machine
  * @typedef {{ space: Space, folders: string[] }} OpenSpace
  * @typedef {import("./kept.js").Project} Project
+ * @typedef {{ kind: "typed", name: string, path: string, touched: null }} TypedRow a typed folder
  */
+
+/**
+ * Whether a row is the folder a typed path names, rather than a project or a space.
+ * @template {{ kind: string }} R
+ * @param {R | TypedRow} r
+ * @returns {r is TypedRow}
+ */
+export const isTyped = (r) => r.kind === "typed";
 
 /**
  * Each open space with its folders: where it is now first (its shown tab's focused terminal,
@@ -104,4 +114,49 @@ export function buildRows(open, projects, { machines, touched, sep, prepare }) {
     rows.push({ ...p, pkey: p.key, touched: touched.get(p.key) ?? null });
   }
   return rows;
+}
+
+/**
+ * Makes projects ready for matching: each gets its project key, and its name and its path as
+ * shown (home as ~, on its own machine) in lowercase, worked out once rather than per key.
+ * @param {(path: string) => string} short this computer's path as shown
+ * @returns {<T extends Project>(p: T) => T & { key: string, lname: string, lpath: string }}
+ */
+export function preparer(short) {
+  /** @type {Map<string, (path: string) => string>} */
+  const there = new Map();
+  /** @param {Project} p */
+  const shown = (p) => {
+    if (!p.machine) return short(p.path);
+    if (!p.home) return p.path;
+    let s = there.get(p.home);
+    if (!s) there.set(p.home, (s = makePaths(p.home).short));
+    return s(p.path);
+  };
+  return (p) => ({
+    ...p,
+    key: projectKey(p.machine, p.path),
+    lname: p.name.toLowerCase(),
+    lpath: shown(p).toLowerCase(),
+  });
+}
+
+/**
+ * The rows for a typed folder path: that folder first (a "typed" row when it isn't a
+ * project), then the projects inside it, at most `shown`. Letter case is ignored.
+ * @template {{ path: string }} R
+ * @param {R[]} rows
+ * @param {string} path the typed path, with ~ expanded and no trailing separator
+ * @param {{ join: (dir: string, name: string) => string, short: (path: string) => string }} paths
+ * @param {number} shown
+ * @returns {(R | TypedRow)[]}
+ */
+export function pathRows(rows, path, { join, short }, shown) {
+  const lower = path.toLowerCase();
+  const prefix = join(lower, "");
+  const same = rows.find((r) => r.path.toLowerCase() === lower);
+  const inside = rows.filter((r) => r !== same && r.path.toLowerCase().startsWith(prefix));
+  /** @type {TypedRow} */
+  const typed = { kind: "typed", name: short(path), path, touched: null };
+  return [same ?? typed, ...inside].slice(0, shown);
 }

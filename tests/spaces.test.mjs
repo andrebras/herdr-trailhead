@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { openSpaces, spaceFor, buildRows, onListedMachines } from "../mods/trailhead/spaces.js";
+import { openSpaces, spaceFor, buildRows, onListedMachines, preparer, pathRows } from "../mods/trailhead/spaces.js";
+import { makePaths } from "../mods/trailhead/paths.js";
 import { projectKey } from "../mods/trailhead/keys.js";
 import { ordered } from "../mods/trailhead/match.js";
 
@@ -97,4 +98,24 @@ test("a removed machine's projects are dropped; an unreachable one's are kept bu
     rowsOf([], projects, back).map((r) => r.path),
     ["/h/app", "/srv/api"],
   );
+});
+
+test("rows show paths with their own machine's home as ~", () => {
+  const prep = preparer(makePaths("/Users/sam").short);
+  const local = prep(project("/Users/sam/code/App"));
+  assert.deepEqual([local.key, local.lname, local.lpath], ["/Users/sam/code/App", "app", "~/code/app"]);
+  const remote = prep(project("/home/me/api", { machine: "devbox", home: "/home/me" }));
+  assert.deepEqual([remote.key, remote.lpath], ["devbox:/home/me/api", "~/api"]);
+  assert.equal(prep(project("/srv/x", { machine: "devbox", home: null })).lpath, "/srv/x");
+});
+
+test("a typed path shows that folder first, then the projects inside it", () => {
+  const paths = makePaths("/Users/sam");
+  const rows = [project("/Users/sam/code/app"), project("/Users/sam/code/web"), project("/Users/sam/notes")];
+  assert.deepEqual(
+    pathRows(rows, "/Users/sam/Code", paths, 12).map((r) => r.path),
+    ["/Users/sam/Code", "/Users/sam/code/app", "/Users/sam/code/web"],
+  );
+  assert.equal(pathRows(rows, "/Users/sam/Code", paths, 12)[0].kind, "typed");
+  assert.equal(pathRows(rows, "/Users/sam/notes", paths, 12)[0].kind, "repo");
 });
