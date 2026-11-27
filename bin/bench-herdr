@@ -1,0 +1,33 @@
+#!/bin/sh
+# Times the ranking inside Herdr's JavaScript engine with 5,000 rows (bench/main.js): one key
+# on a fresh list, the slowest key while typing, and the order with nothing typed must each
+# take under 16 ms, one frame. Each case runs 3 times and the middle time counts. Where Herdr
+# isn't installed, as on GitHub's CI, it says so and skips.
+set -eu
+cd "$(dirname "$0")/.."
+if ! command -v herdr-app >/dev/null 2>&1; then
+  echo "herdr-app not found: skipped timing the ranking in Herdr." >&2
+  exit 0
+fi
+home=$(mktemp -d)
+trap 'rm -rf "$home"' EXIT
+mod="$home/mods/trailhead-bench"
+mkdir -p "$mod"
+cp bench/main.js bench/rows.js mods/trailhead/match.js "$mod/"
+echo '{ "place": "none", "title": "Trailhead bench" }' >"$mod/mod.json"
+status=0
+for c in a zzzz typing ordered index; do
+  times=""
+  for _ in 1 2 3; do
+    printf 'export const CASE = "%s";\n' "$c" >"$mod/case.js"
+    ms=$(HERDR_APP_HOME="$home" herdr-app check "$mod" 2>&1 | sed -n "s/.*BENCH $c \([0-9]*\).*/\1/p" | head -n 1)
+    times="$times ${ms:-stopped}"
+  done
+  mid=$(printf '%s\n' $times | sort -n | sed -n 2p)
+  echo "$c: ${mid} ms (runs:$times)"
+  # Building the index happens once per list, not per key, so it has no limit of its own.
+  case $times in *stopped*) status=1 ;; esac
+  if [ "$c" != index ] && ! [ "$mid" -lt 16 ] 2>/dev/null; then status=1; fi
+done
+[ "$status" -eq 0 ] || echo "Slower than 16 ms inside Herdr." >&2
+exit "$status"
