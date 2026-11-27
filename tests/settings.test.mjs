@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readSettings, presentRoots, DEFAULTS } from "../mods/trailhead/settings.js";
+import { readSettings, loadSettings, presentRoots, DEFAULTS } from "../mods/trailhead/settings.js";
 
 test("no files means the defaults and no problems", () => {
   assert.deepEqual(readSettings(null, null), { settings: DEFAULTS, problems: [], defaultRoots: true });
@@ -53,4 +53,18 @@ test("trailhead.json that isn't an object is reported", () => {
   assert.deepEqual(settings, DEFAULTS);
   assert.equal(problems.length, 1);
   assert.match(problems[0], /trailhead.json must hold an object/);
+});
+
+test("a settings file that can't be read is reported; a missing one isn't", async () => {
+  const files = { "trailhead.json": JSON.stringify({ depth: 2 }) };
+  const read = async (name) => files[name] ?? null;
+  assert.deepEqual((await loadSettings(read)).problems, []);
+  assert.equal((await loadSettings(read)).settings.depth, 2);
+  const denied = async (name) => {
+    if (name === "trailhead.json") throw new Error("Permission denied");
+    return null;
+  };
+  const { settings, problems } = await loadSettings(denied);
+  assert.deepEqual(settings, DEFAULTS);
+  assert.deepEqual(problems, ["Can't read trailhead.json in Herdr's folder (Permission denied); using the defaults"]);
 });

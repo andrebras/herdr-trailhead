@@ -1,0 +1,14 @@
+#!/bin/sh
+# Type-checks main.js against the type files Herdr writes into its folder on every start
+# (see tsconfig.herdr.json). Where Herdr isn't installed, as on GitHub's CI, it says so and
+# skips the check, so it never fails there for a missing file.
+set -eu
+cd "$(dirname "$0")/.."
+app="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
+if [ ! -f "$app/gpui-kit.d.ts" ] || [ ! -f "$app/herdr.d.ts" ]; then
+  echo "Herdr's type files aren't in $app: skipped type-checking main.js." >&2
+  exit 0
+fi
+mkdir -p .herdr-types
+cp -f "$app/gpui-kit.d.ts" "$app/herdr.d.ts" .herdr-types/
+npx --no-install tsc -p tsconfig.herdr.json
