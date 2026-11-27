@@ -75,6 +75,13 @@ Common types are `feat` (a new feature), `fix` (a bug fix), `docs` (documentatio
 
 A screenshot helps when a change alters what the popup shows. Use invented project names and paths in it, such as `acme-web` or `~/code/notes`, never your real projects, folders or user name.
 
+To make `preview.png` again, run Herdr on a scratch setup so your own stays untouched:
+
+1. Make a scratch home with a few invented git repos, such as `/private/tmp/thp/home/code/acme-web`. Use a real path, not a symlink (on macOS `/tmp` is one), or open spaces won't match their projects. Keep it short: Herdr's socket path must stay under 104 bytes.
+2. Put Herdr's folder inside that home (`/private/tmp/thp/home/.config/herdr-app`), because mods read only inside the home folder. Copy `mods/trailhead` into it, with a `trailhead.json` whose `roots` point at the repos, and a `shared.json` of `{"frame.welcomed": "skipped"}` so the first-run welcome stays closed.
+3. Start the window with `HOME`, `HERDR_APP_HOME`, `XDG_STATE_HOME` and `HC_SESSION` all set for the scratch setup, so it also gets its own herdr-core.
+4. Open the popup with `herdr-app do mod.open '{"name":"trailhead"}'`, save the window with `herdr-app shot`, and crop the PNG to the popup. Quit with `herdr-app do app.quit`, with the same variables set.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the [Apache License 2.0](LICENSE), the same license as the project.
