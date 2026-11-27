@@ -165,7 +165,7 @@ While it searches, Trailhead:
 
 When Herdr is connected to other machines (`hc machine add`), Trailhead lists their projects too, with a Machine column that names where each project is (`local` for this computer). The column shows only while another machine is connected.
 
-Herdr doesn't let mods read another machine's folders, so Trailhead runs one small `find` script there through Herdr, using the same `roots` and `depth` (`~` means that machine's home folder). Each machine is searched at the same time as the others, with a 2-second limit, so a slow or offline machine never delays your local projects; the error line says when one didn't answer. Enter goes to the project's space on that machine, or makes one there. Rows from other machines show no age, because their git logs can't be read.
+Herdr doesn't let mods read another machine's folders, so Trailhead runs one small `find` script there through Herdr, using the same `roots` and `depth` (`~` means that machine's home folder). Each machine is searched at the same time as the others, with a 2-second limit, so a slow or offline machine never delays your local projects; the error line says when one didn't answer. A root that doesn't exist on a machine is skipped there without a message, since your folders often differ between machines; one that exists but can't be read is reported. Enter goes to the project's space on that machine, or makes one there. Rows from other machines show no age, because their git logs can't be read.
 
 The remote machine needs `sh` and `find`, which Linux and macOS have.
 
