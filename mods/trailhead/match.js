@@ -1,8 +1,19 @@
 // Matching that knows nothing about Herdr, so tests can run it under node.
 
+/**
+ * A row in the list: a project, or a space that is open.
+ * @typedef {{ name: string, path: string, space?: object }} Row
+ */
+
 // Higher is better, 0 is no match: the name starting with it, then containing it, then
 // its letters in order in the name or the path (a fuzzy match, as fzf does).
 // `f`, `name` and `path` are already lowercase.
+/**
+ * @param {string} f
+ * @param {string} name
+ * @param {string} path
+ * @returns {number}
+ */
 export function score(f, name, path) {
   if (name.startsWith(f)) return 400 - name.length;
   if (name.includes(f)) return 300 - name.length;
@@ -12,6 +23,11 @@ export function score(f, name, path) {
   return 0;
 }
 
+/**
+ * Whether the letters of `f` appear in `text` in order.
+ * @param {string} f
+ * @param {string} text
+ */
 export function inOrder(f, text) {
   let i = 0;
   for (const c of text) if (c === f[i]) i++;
@@ -20,6 +36,15 @@ export function inOrder(f, text) {
 
 // The best `shown` rows for a lowercase query, best first; ties keep their order.
 // `display(path)` gives the path as shown (~/...); `recent` the recent picks, newest first.
+/**
+ * @template {Row} R
+ * @param {R[]} rows
+ * @param {string} f
+ * @param {number} shown
+ * @param {(path: string) => string} display
+ * @param {string[]} [recent]
+ * @returns {R[]}
+ */
 export function best(rows, f, shown, display, recent = []) {
   return rows
     .map((r) => ({ r, m: score(f, r.name.toLowerCase(), display(r.path).toLowerCase()) }))
@@ -32,14 +57,20 @@ export function best(rows, f, shown, display, recent = []) {
 
 // With nothing typed: open spaces first (in the sidebar's order), then your recent picks
 // (newest first), then the rest by name.
+/**
+ * @template {Row} R
+ * @param {R[]} rows
+ * @param {string[]} recent
+ * @returns {R[]}
+ */
 export function ordered(rows, recent) {
   const pick = new Map(recent.map((p, i) => [p, i]));
-  const group = (r) => (r.space ? 0 : pick.has(r.path) ? 1 : 2);
+  const group = (/** @type {R} */ r) => (r.space ? 0 : pick.has(r.path) ? 1 : 2);
   return rows
     .map((r, i) => ({ r, i, g: group(r) }))
     .sort((a, b) => {
       if (a.g !== b.g) return a.g - b.g;
-      if (a.g === 1) return pick.get(a.r.path) - pick.get(b.r.path);
+      if (a.g === 1) return (pick.get(a.r.path) ?? 0) - (pick.get(b.r.path) ?? 0);
       if (a.g === 2) return a.r.name.localeCompare(b.r.name);
       return a.i - b.i;
     })
@@ -48,12 +79,17 @@ export function ordered(rows, recent) {
 
 // Among similar matches, an open space and a recent pick come first. The bonus is worth at
 // most 20 characters of name length, so a clearly better kind of match still wins.
+/**
+ * @param {Row} row
+ * @param {string[]} recent
+ */
 export function bonus(row, recent) {
   const at = recent.indexOf(row.path);
   return (row.space ? 10 : 0) + (at < 0 ? 0 : Math.max(1, 10 - at));
 }
 
 // How long ago, in a few letters: now, 5m, 3h, 2d, 3w, 4mo, 2y.
+/** @param {number} seconds */
 export function age(seconds) {
   const s = Math.max(0, seconds);
   if (s < 60) return "now";
@@ -66,6 +102,10 @@ export function age(seconds) {
 }
 
 // The time of a git reflog's last entry: "<old> <new> <name> <email> <seconds> <zone>\t<message>".
+/**
+ * @param {string} text
+ * @returns {number | null}
+ */
 export function reflogTime(text) {
   const lines = text.split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
