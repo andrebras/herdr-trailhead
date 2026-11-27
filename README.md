@@ -40,7 +40,15 @@ From left to right, a row shows:
 - **The kind**: `repo` (a git repository), `worktree` (a git worktree: a second checkout of a repository, in its own folder, usually on another branch) or `folder` (a folder you listed in the settings). An open space that is not one of your projects shows no kind.
 - **The last change**: how long ago the project last changed, as `now`, `5m`, `3h`, `2d`, `3w`, `4mo` or `2y`. Trailhead reads this from git's reflog, the log git keeps in each repository of every commit, checkout and pull. Rows without git show nothing here.
 
-With nothing typed, the list shows your open spaces first, in the sidebar's order. Then come the projects you picked most recently, newest first. Then come the rest, by name.
+With nothing typed, the list is ordered so you can jump back and forth:
+
+1. The project you were in before this one, selected, so Cmd+O then Enter takes you back. Do it again and you are back where you started.
+2. Your other open spaces, in the sidebar's order.
+3. The other projects you picked recently, newest first.
+4. The rest, most recently changed first. Projects with no known change come last, by name.
+5. The space you are in now, at the bottom.
+
+Trailhead remembers the space you are in each time it opens, so "before" includes spaces you reached from the sidebar. The order is worked out again once the change times are read, and your selection stays on the same row.
 
 When you type, Trailhead matches your letters fuzzily. A name that starts with what you typed comes first. Then a name that contains it. Then a name that has your letters in the same order with others in between (`aw` finds `acme-web`). Last come matches in the path. Among similar matches, open spaces and recent picks come first. The list shows the best 12 rows.
 
@@ -111,7 +119,7 @@ To update Trailhead, delete `~/.config/herdr-app/mods/trailhead`, then copy the 
 | Cmd+Enter (Ctrl+Enter on Linux and Windows) | Goes to the project and starts your agent there: in a new tab of its open space, or in a new space. |
 | Esc                                         | Closes Trailhead.                                                                                   |
 
-The bottom line of the popup lists these keys. To open any folder, type its path. It must start with `~`, `/`, or a drive such as `C:\`. Enter opens a space there. If the folder is in your home folder and does not exist, the row says "no such folder" and the popup stays open. Herdr only lets mods read inside your home folder, so a folder elsewhere opens without a check, and Herdr tells you if it is not there.
+To jump back to the project you were in before, press Cmd+O then Enter: with nothing typed, that project is the first row and already selected. Press them again to return. The bottom line of the popup lists these keys. To open any folder, type its path. It must start with `~`, `/`, or a drive such as `C:\`. Enter opens a space there. If the folder is in your home folder and does not exist, the row says "no such folder" and the popup stays open. Herdr only lets mods read inside your home folder, so a folder elsewhere opens without a check, and Herdr tells you if it is not there.
 
 When something is wrong, one red line at the top of the popup says what: a setting with a bad value (Trailhead uses the default instead), a root it can't read, or an agent program that isn't installed.
 

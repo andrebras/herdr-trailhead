@@ -2,8 +2,8 @@
 // tmux-sessionizer lists them. Type to filter, ↑/↓ (or Ctrl+P/N) and Enter: go to the
 // project's space, or make one there named after the folder. Alt+Enter (or Shift+Enter)
 // makes a new space even if one is open; Cmd+Enter (Ctrl+Enter on Linux and Windows) also
-// starts the agent there. With nothing typed: open spaces, then your recent picks, then the
-// rest by name. Each row shows its space's agent status, its kind (repo, worktree, folder)
+// starts the agent there. With nothing typed: the project you were in before (so Enter jumps
+// back), open spaces, recent picks, the rest by last change, and the current space last. Each row shows its space's agent status, its kind (repo, worktree, folder)
 // and when it last changed (its reflog's last entry: a commit, checkout or pull). A typed
 // path to a folder (~/code/foo) opens that folder. It never makes folders and never closes
 // a space.
@@ -72,6 +72,11 @@ export default class Trailhead extends View {
     this.problem = null; // what went wrong with the last pick (a missing agent program)
     this.enterAt = 0; // when Alt+Enter was handled, so the input's own Enter doesn't repeat it
     this.version = 0; // bumps when what the rows are built from changes
+    // The space you are in now goes first in the recent picks, so that with nothing typed
+    // the project you were in before is row 1 and Enter jumps back to it.
+    const here = this.allRows().find((r) => r.space?.active);
+    this.current = here ? keyOf(here) : null;
+    if (this.current) remember(this.current);
     this.recent = readRecent();
     this.input = InputState.new({ placeholder: "Open a project…" });
     this.input.on("change", (_e, cx) => {
@@ -166,13 +171,13 @@ export default class Trailhead extends View {
     closeOverlay(props().overlay);
   }
 
-  // Open spaces on this computer, then the projects without one. With nothing typed:
-  // open spaces, then your recent picks, then the rest by name. Typed: best matches first.
+  // The rows to show. With nothing typed, in the order `ordered` explains (the previous
+  // project first); typed, the best matches first.
   rows() {
     const rows = this.allRows();
     const typed = this.filter.trim();
     const f = typed.toLowerCase();
-    if (!f) return ordered(rows, this.recent).slice(0, SHOWN);
+    if (!f) return ordered(rows, this.recent, this.current).slice(0, SHOWN);
     // A typed path: that folder first, then what is inside it.
     if (isPath(typed)) {
       const path = trim(expand(typed));
@@ -182,7 +187,9 @@ export default class Trailhead extends View {
       const first = same ?? { kind: "typed", name: short(path), path, touched: null };
       return [first, ...inside].slice(0, SHOWN);
     }
-    return best(rows, f, SHOWN, short, this.recent, this.zoxide);
+    // The current space was only saved for jumping back; it gets no recent-pick bonus.
+    const picks = this.recent.filter((k) => k !== this.current);
+    return best(rows, f, SHOWN, short, picks, this.zoxide);
   }
 
   // Every row, built again only when the projects or the spaces change, not on each key.
