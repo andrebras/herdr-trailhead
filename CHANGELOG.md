@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Other machines: projects on every machine Herdr is connected to, searched at the same time with a 2-second limit each, with a Machine column.
 - Alt+Enter (or Shift+Enter) makes a new space even if one is open; Cmd+Enter (Ctrl+Enter on Linux and Windows) also starts your agent, `claude` unless the `agent` setting says otherwise.
 - An error line at the top of the popup for bad settings, roots it can't read and a missing agent program.
 - Settings live in the mod's own `mod.json`; `projects.json` still works for the ones it doesn't set.
