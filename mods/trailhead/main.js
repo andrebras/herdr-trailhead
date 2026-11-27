@@ -15,7 +15,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { readFile, readdir, exists } from "fs/promises";
+import { readFile, readdir } from "fs/promises";
 import { spaces, panes, run, theme, props, closeOverlay, home, appHome } from "herdr";
 import { makePaths } from "./paths.js";
 import { best, ordered, age, reflogTime } from "./match.js";
