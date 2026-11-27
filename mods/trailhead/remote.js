@@ -21,7 +21,7 @@ export function shellPath(root) {
 /**
  * The script that lists the repos under the roots, as the local search does: `depth` levels
  * down, skipping hidden folders and node_modules. It prints "H <home>" first, then a line
- * per repo ("R <path>") or worktree ("W <path>"), and "E <root>" for a root it can't read.
+ * per repo ("R <path>") or worktree ("W <path>"), and "E <root>" for a root that is there but can't be read; a missing root prints nothing.
  * @param {string[]} roots
  * @param {number} depth
  */
@@ -37,7 +37,9 @@ export function findScript(roots, depth) {
   for (const root of roots) {
     const r = shellPath(root);
     lines.push(
-      `if d=$(cd ${r} 2>/dev/null && pwd); then`,
+      // A root that isn't there is skipped quietly: roots often differ between machines.
+      `if [ ! -e ${r} ]; then :`,
+      `elif d=$(cd ${r} 2>/dev/null && pwd); then`,
       list("d", "R"),
       list("f", "W"),
       `else printf 'E %s\\n' ${r}; fi`,

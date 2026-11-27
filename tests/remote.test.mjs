@@ -42,7 +42,8 @@ test("the find script finds repos and worktrees as the local search does", () =>
   mk("code/node_modules/pkg/.git");
   mk("code/login");
   writeFileSync(join(home, "code/login/.git"), "gitdir: /elsewhere\n");
-  const out = execFileSync("sh", ["-c", findScript(["~/code", "~/missing"], 2)], {
+  writeFileSync(join(home, "not-a-folder"), "");
+  const out = execFileSync("sh", ["-c", findScript(["~/code", "~/missing", "~/not-a-folder"], 2)], {
     env: { ...process.env, HOME: home },
     encoding: "utf8",
   });
@@ -51,5 +52,7 @@ test("the find script finds repos and worktrees as the local search does", () =>
     found.map((p) => `${p.kind} ${p.path.slice(home.length)}`),
     ["repo /code/api", "repo /code/group/web", "worktree /code/login"],
   );
-  assert.deepEqual(unreadable, [join(home, "missing")]);
+  // A missing root is skipped quietly (roots often differ between machines); one that is
+  // there but can't be opened is reported.
+  assert.deepEqual(unreadable, [join(home, "not-a-folder")]);
 });
