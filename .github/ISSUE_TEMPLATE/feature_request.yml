@@ -1,0 +1,32 @@
+name: Feature request
+description: An idea to make Trailhead better.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the idea. Please search the existing issues and the roadmap in the README first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and what makes it hard today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What Trailhead could do about it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Other ways you considered
+      description: Other solutions or workarounds you thought of.
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Examples, sketches or screenshots. Use invented project names in them.
