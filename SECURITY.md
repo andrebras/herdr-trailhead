@@ -24,13 +24,13 @@ Trailhead is a mod (a small plugin) for the Herdr desktop app. Reports are welco
 - showing or leaking file or folder contents beyond the names and paths it lists;
 - running programs, or making network requests;
 - opening or switching to a space in a folder other than the one you picked;
-- harm caused by a crafted `projects.json`, folder name, `.git` file or reflog;
+- harm caused by crafted settings (`mod.json` or `projects.json`), a crafted folder name, `.git` file or reflog;
 - exposing the list of recent picks it stores in the mod's local storage.
 
 What Trailhead does, by design:
 
-- It reads `projects.json` in Herdr's folder, the folder names under the roots it lists, and the `.git` entries and reflogs (git's log of commits, checkouts and pulls) of the repositories it finds. Herdr only lets mods read files inside your home folder.
-- It runs no programs. It asks Herdr only to select a space or make a new one.
+- It reads its settings (its `mod.json`, and `projects.json` in Herdr's folder), the folder names under the roots it lists, and the `.git` entries and reflogs (git's log of commits, checkouts and pulls) of the repositories it finds. Herdr only lets mods read files inside your home folder.
+- It runs only `zoxide query -ls` (when zoxide is installed) and, on Cmd+Enter, a check that the agent program is installed. It asks Herdr only to select a space, make a new one or add a tab.
 - It stores the last 50 projects you picked in the mod's local storage, which Herdr keeps in its own folder.
 
 Problems in Herdr itself, such as the limits Herdr puts on what mods can read, belong to the Herdr project. Please report those to Herdr.
