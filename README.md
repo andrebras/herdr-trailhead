@@ -101,36 +101,53 @@ To update Trailhead, delete `~/.config/herdr-app/mods/trailhead`, then copy the 
 
 ## Usage
 
-| Key                    | What it does                                                                             |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| Cmd+O                  | Opens Trailhead (with the binding above).                                                |
-| Typing                 | Filters the list.                                                                        |
-| ↑ / ↓, Ctrl+P / Ctrl+N | Moves the selection. It wraps around at both ends.                                       |
-| Enter, or a click      | Goes to the project's space, or makes a new space in its folder, named after the folder. |
-| Esc                    | Closes Trailhead.                                                                        |
+| Key                                         | What it does                                                                                        |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Cmd+O                                       | Opens Trailhead (with the binding above).                                                           |
+| Typing                                      | Filters the list.                                                                                   |
+| ↑ / ↓, Ctrl+P / Ctrl+N                      | Moves the selection. It wraps around at both ends.                                                  |
+| Enter, or a click                           | Goes to the project's space, or makes a new space in its folder, named after the folder.            |
+| Alt+Enter or Shift+Enter                    | Makes a new space in the project's folder, even if one is already open there.                       |
+| Cmd+Enter (Ctrl+Enter on Linux and Windows) | Goes to the project and starts your agent there: in a new tab of its open space, or in a new space. |
+| Esc                                         | Closes Trailhead.                                                                                   |
 
-To open any folder, type its path. It must start with `~`, `/`, or a drive such as `C:\`. Enter opens a space there. If the folder is in your home folder and does not exist, the row says "no such folder" and the popup stays open. Herdr only lets mods read inside your home folder, so a folder elsewhere opens without a check, and Herdr tells you if it is not there.
+The bottom line of the popup lists these keys. To open any folder, type its path. It must start with `~`, `/`, or a drive such as `C:\`. Enter opens a space there. If the folder is in your home folder and does not exist, the row says "no such folder" and the popup stays open. Herdr only lets mods read inside your home folder, so a folder elsewhere opens without a check, and Herdr tells you if it is not there.
+
+When something is wrong, one red line at the top of the popup says what: a setting with a bad value (Trailhead uses the default instead), a root it can't read, or an agent program that isn't installed.
 
 ## Settings
 
-Trailhead reads `projects.json` in Herdr's folder (`~/.config/herdr-app/projects.json`). Trailhead reads the file again each time it opens, so a change shows the next time you open it.
+Trailhead's settings live in its own `mod.json` (`~/.config/herdr-app/mods/trailhead/mod.json`), in the `"settings"` object. Trailhead reads them each time it opens, so a change shows the next time you open it. Settings that `mod.json` doesn't set are read from `projects.json` in Herdr's folder, where earlier versions kept them, and otherwise take their defaults.
 
 ```json
-{
+"settings": {
   "roots": ["~/code"],
   "depth": 3,
-  "folders": ["~/notes"]
+  "folders": ["~/notes"],
+  "agent": ["claude"],
+  "zoxide": "auto"
 }
 ```
 
-| Setting   | Default     | What it does                                                                                                                                                 |
-| --------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `roots`   | `["~/Lab"]` | The folders searched for git repositories. A root itself is never listed, only the repositories under it.                                                    |
-| `depth`   | `3`         | How many folder levels below each root to search. A whole number from 1 to 6; any other value means 3.                                                       |
-| `folders` | `[]`        | Folders listed as they are, with the kind `folder`, git or not.                                                                                              |
-| `zoxide`  | `"auto"`    | `"auto"` uses [zoxide](https://github.com/ajeetdsouza/zoxide)'s ranking, when it is installed, to break ties between similar matches. `"off"` never runs it. |
+| Setting   | Default      | What it does                                                                                                                                                 |
+| --------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `roots`   | `["~/Lab"]`  | The folders searched for git repositories. A root itself is never listed, only the repositories under it.                                                    |
+| `depth`   | `3`          | How many folder levels below each root to search. A whole number from 1 to 6.                                                                                |
+| `folders` | `[]`         | Folders listed as they are, with the kind `folder`, git or not.                                                                                              |
+| `agent`   | `["claude"]` | The program Cmd+Enter starts, with its arguments, as a list.                                                                                                 |
+| `zoxide`  | `"auto"`     | `"auto"` uses [zoxide](https://github.com/ajeetdsouza/zoxide)'s ranking, when it is installed, to break ties between similar matches. `"off"` never runs it. |
 
-Without the file, or with a file that is not valid JSON, Trailhead uses the defaults.
+### Change the agent Cmd+Enter starts
+
+Set `agent` to the command you want, split into a list: the program first, then each argument. For example:
+
+- Codex: `"agent": ["codex"]`
+- Claude Code, continuing the last conversation: `"agent": ["claude", "--continue"]`
+- A shell script: `"agent": ["~/bin/start-work"]`
+
+Trailhead checks that the program is installed (on the project's machine) before it opens anything. If it isn't, the red line at the top says so and the popup stays open.
+
+Updating Trailhead by copying the folder again replaces `mod.json`, so note your settings first, or keep them in `projects.json`, which an update never touches.
 
 While it searches, Trailhead:
 
@@ -140,8 +157,8 @@ While it searches, Trailhead:
 
 ## Privacy and permissions
 
-- **Files it reads:** `projects.json`, the folder names under your roots, and the `.git` entries and reflogs of the repositories it finds. Herdr only lets mods read files inside your home folder. A root outside it finds nothing. A listed folder or typed path outside it is shown or opened without being checked.
-- **Programs it runs:** only `zoxide query -ls`, once per open, when zoxide is installed and the `zoxide` setting is not `"off"`. Otherwise it asks Herdr to select a space (`space.select`) or make one (`space.new`), and nothing else.
+- **Files it reads:** its `mod.json`, `projects.json`, the folder names under your roots, and the `.git` entries and reflogs of the repositories it finds. Herdr only lets mods read files inside your home folder. A root outside it can't be read, and the error line says so. A listed folder or typed path outside it is shown or opened without being checked.
+- **Programs it runs:** `zoxide query -ls`, once per open, when zoxide is installed and the `zoxide` setting is not `"off"`; and on Cmd+Enter, a check that the agent program is installed (`command -v`, or `where` on Windows). Otherwise it asks Herdr to select a space (`space.select`), make one (`space.new`) or add a tab (`tab.new`), and nothing else.
 - **Network:** it makes no network requests.
 - **What it stores:** the last 50 projects you picked, so it can list them first, and the last list it found (names, paths, kinds and ages), so the next open shows it at once. Both are kept in the mod's local storage, which Herdr saves under `~/.config/herdr-app/data/trailhead/`.
 
@@ -150,8 +167,6 @@ While it searches, Trailhead:
 These are planned, not built yet:
 
 - Projects and spaces on other machines connected to Herdr.
-- Cmd+Enter to start an agent in the chosen project.
-- Alt+Enter for an extra action on the chosen project.
 - A listing in the [Herdr mods gallery](https://herdr.dev/mods).
 
 ## Development

@@ -36,8 +36,8 @@ body:
   - type: textarea
     id: settings
     attributes:
-      label: Your projects.json
-      description: The content of projects.json in Herdr's folder, if you have one. Replace real paths with invented ones.
+      label: Your settings
+      description: The "settings" in Trailhead's mod.json, and projects.json in Herdr's folder if you have one. Replace real paths with invented ones.
       render: json
   - type: input
     id: trailhead-version
