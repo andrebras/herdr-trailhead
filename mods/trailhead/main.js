@@ -1,26 +1,30 @@
 // Trailhead: open a project, or get back to it. The git repos under your folders, as
-// tmux-sessionizer lists them. Type to filter, ↑/↓ (or Ctrl+P/N) and Enter: go to the project's space,
-// or make one there named after the folder. With nothing typed: open spaces, then your
-// recent picks, then the rest by name. Each row shows its space's agent status, its kind
-// (repo, worktree, folder) and when it last changed (its reflog's last entry: a commit,
-// checkout or pull). A typed path to a folder (~/code/foo) opens that folder. It never
-// makes folders and never closes a space.
+// tmux-sessionizer lists them. Type to filter, ↑/↓ (or Ctrl+P/N) and Enter: go to the
+// project's space, or make one there named after the folder. Alt+Enter (or Shift+Enter)
+// makes a new space even if one is open; Cmd+Enter (Ctrl+Enter on Linux and Windows) also
+// starts the agent there. With nothing typed: open spaces, then your recent picks, then the
+// rest by name. Each row shows its space's agent status, its kind (repo, worktree, folder)
+// and when it last changed (its reflog's last entry: a commit, checkout or pull). A typed
+// path to a folder (~/code/foo) opens that folder. It never makes folders and never closes
+// a space.
 //
-// Where it looks: projects.json in Herdr's folder,
-//   { "roots": ["~/Lab"], "depth": 3, "folders": ["~/notes"] }
-// roots are searched for repos `depth` folders down; folders are listed as they are.
-// Without the file: ~/Lab, 3 deep. It looks again each time it opens. It reads folders
-// itself (no `find`, so it works the same on every system), skipping hidden folders and
-// node_modules, and only in your home folder, where mods may read.
+// Settings: "settings" in this mod's mod.json, else projects.json in Herdr's folder:
+//   { "roots": ["~/Lab"], "depth": 3, "folders": ["~/notes"], "agent": ["claude"], "zoxide": "auto" }
+// roots are searched for repos `depth` folders down; folders are listed as they are; agent
+// is what Cmd+Enter starts. A bad value, or a root it can't read, shows in the error bar at
+// the top. It reads folders itself (no `find`, so it works the same on every system),
+// skipping hidden folders and node_modules, and only in your home folder, where mods may read.
 //
 // Speed: the list from last time is kept in the mod's storage and drawn in the first frame;
 // the folders are read again after that, and the rows update in place without moving the
 // selection. zoxide's ranking breaks ties between similar matches when it is installed
-// (`zoxide query -ls`, the only program it runs; "zoxide": "off" in projects.json stops it).
+// (`zoxide query -ls`; "zoxide": "off" stops it). The only other program it runs is a check
+// that the agent is installed, on Cmd+Enter.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { readFile, readdir } from "fs/promises";
+import { platform } from "os";
 import { spaces, panes, run, theme, props, closeOverlay, home, appHome, exec, checking } from "herdr";
 import { makePaths } from "./paths.js";
 import {
@@ -36,8 +40,9 @@ import {
   keyOf,
 } from "./match.js";
 import { keptText, readKept } from "./kept.js";
+import { readSettings, DEFAULTS } from "./settings.js";
+import { command, installedCheck } from "./actions.js";
 
-const DEFAULTS = { roots: ["~/Lab"], depth: 3, folders: [], zoxide: "auto" };
 // How many matches show: the best ones, as a fuzzy finder does.
 const SHOWN = 12;
 // At most this many folders are looked at per search, so a huge root can't stall it.
@@ -60,6 +65,10 @@ export default class Trailhead extends View {
     for (const r of kept ?? [])
       if (r.touched !== null && r.touched !== undefined) this.touched.set(keyOf(prepare(r)), r.touched);
     this.zoxide = new Map(); // path → a small ranking bonus, when zoxide is installed
+    this.settings = DEFAULTS;
+    this.problems = []; // what's wrong with the settings or the roots, shown in the error bar
+    this.problem = null; // what went wrong with the last pick (a missing agent program)
+    this.enterAt = 0; // when Alt+Enter was handled, so the input's own Enter doesn't repeat it
     this.version = 0; // bumps when what the rows are built from changes
     this.recent = readRecent();
     this.input = InputState.new({ placeholder: "Open a project…" });
@@ -69,7 +78,13 @@ export default class Trailhead extends View {
       this.selected = null;
       cx.notify();
     });
-    this.input.on("submit", (_e, cx) => cx.spawn((cx) => this.go(this.rows()[this.at], cx)));
+    // Enter goes there; Cmd+Enter (Ctrl+Enter on Linux and Windows) starts the agent too;
+    // Shift+Enter, like Alt+Enter, makes a new space even if one is open.
+    this.input.on("submit", (e, cx) => {
+      if (Date.now() - this.enterAt < 300) return;
+      const how = { agent: Boolean(e.secondary), fresh: Boolean(e.shift) };
+      cx.spawn((cx) => this.go(this.rows()[this.at], cx, how));
+    });
     this.input.focus();
     // Popups take the keyboard a moment after they open; ask again then. Not while
     // `herdr-app check` loads the mod, which reloads it and would strand the timer.
@@ -77,9 +92,11 @@ export default class Trailhead extends View {
     this.handle = cx.focus_handle();
     // Look for changes after the first draw: the folders, then when each repo last changed.
     cx.spawn(async (cx) => {
-      const settings = await config();
+      const { settings, problems } = await loadSettings();
+      this.settings = settings;
       if (settings.zoxide !== "off" && !checking()) cx.spawn((cx) => this.loadZoxide(cx));
-      const found = await findProjects(settings);
+      const { found, unreadable } = await findProjects(settings);
+      this.problems = [...problems, ...unreadable];
       // Named after their folder; a worktree after its repo too ("acme/login"); and where two
       // names clash, after as much of the path as tells them apart.
       const label = (r) => (r.repo ? `${base(r.repo)}/${base(r.path)}` : base(r.path));
@@ -153,31 +170,43 @@ export default class Trailhead extends View {
     return rows;
   }
 
-  async go(r, cx) {
+  // Go to the row's project as `how` says: { fresh } for a new space even if one is open,
+  // { agent } to start the agent there too.
+  async go(r, cx, how = {}) {
     if (!r) return;
-    if (r.kind === "typed") return this.openTyped(r.path, cx);
-    remember(keyOf(r));
-    this.close();
-    if (r.kind === "space") return run("space.select", { id: r.space.id });
-    const there = spaceFor(r.path, localSpaces());
-    if (there) run("space.select", { id: there.id });
-    else run("space.new", { folder: r.path, name: r.name });
-  }
-
-  // A typed folder opens when it exists; otherwise the popup says so and stays. Mods may
-  // only read in the home folder, so a folder elsewhere opens unchecked, and Herdr says
-  // so if it isn't there.
-  async openTyped(path, cx) {
-    if (inHome(path) && !(await isFolder(path))) {
+    const path = r.path;
+    if (r.kind === "typed" && inHome(path) && !(await isFolder(path))) {
+      // A typed folder opens when it exists; otherwise the popup says so and stays. Mods may
+      // only read in the home folder, so a folder elsewhere opens unchecked, and Herdr says
+      // so if it isn't there.
       this.missing = this.filter.trim();
       cx.notify();
       return;
     }
-    remember(path);
+    const agent = how.agent ? this.settings.agent : null;
+    if (agent && !(await this.installed(agent[0], r.machine ?? null, cx))) return;
+    remember(keyOf(r));
     this.close();
-    const there = spaceFor(path, localSpaces());
-    if (there) run("space.select", { id: there.id });
-    else run("space.new", { folder: path, name: base(path) });
+    const project = { path, name: r.kind === "typed" ? base(path) : r.name, machine: r.machine ?? null };
+    const space = r.space ?? spaceFor(path, localSpaces());
+    const c = command(project, space ?? null, { fresh: how.fresh, agent });
+    run(c.name, c.args);
+  }
+
+  // Whether the agent program is there; if not, the error bar says so and the popup stays.
+  // When it can't be checked (no sh), it is tried anyway and the terminal shows the error.
+  async installed(program, machine, cx) {
+    const check = installedCheck(program, home().includes("\\"));
+    try {
+      const out = await exec(check.command, check.args, { on: machine, timeout: 3000 });
+      if (out.code === 0) return true;
+    } catch {
+      return true;
+    }
+    const where = machine ? `on ${machine}` : "on this computer";
+    this.problem = `${program} isn't installed ${where}. Change "agent" in Trailhead's mod.json.`;
+    cx.notify();
+    return false;
   }
 
   render() {
@@ -193,7 +222,11 @@ export default class Trailhead extends View {
         ? "Looking for projects…"
         : this.filter.trim()
           ? "No project matches. Type a path (~/code/app) to open any folder."
-          : "No projects found. List your folders in projects.json in Herdr's folder.";
+          : 'No projects found. Set "roots" in Trailhead\'s mod.json to the folders that hold them.';
+    // The error bar: one line, the most recent problem first, with how many more there are.
+    const errors = [this.problem, ...this.problems].filter(Boolean);
+    const errorLine = errors.length > 1 ? `${errors[0]} (and ${errors.length - 1} more)` : errors[0];
+    const agentName = base(this.settings.agent[0] ?? "agent");
     const missing = this.missing !== undefined && this.missing === this.filter.trim();
     const now = Date.now() / 1000;
     const statusColor = { working: t.working, blocked: t.blocked, done: t.done, idle: t.idle };
@@ -270,6 +303,12 @@ export default class Trailhead extends View {
       .on_key_down((e, cx) => {
         const k = e.keystroke;
         if (k === "escape") return this.close();
+        if (k === "alt-enter") {
+          this.enterAt = Date.now();
+          const r = rows[this.at];
+          cx.stop_propagation();
+          return cx.spawn((cx) => this.go(r, cx, { fresh: true }));
+        }
         if (!rows.length) return;
         if (k === "down" || k === "ctrl-n") this.at = (this.at + 1) % rows.length;
         else if (k === "up" || k === "ctrl-p") this.at = (this.at + rows.length - 1) % rows.length;
@@ -296,6 +335,9 @@ export default class Trailhead extends View {
               .child("Esc"),
           ),
       )
+      .when(Boolean(errorLine), (el) =>
+        el.child(div().px(2).text_size(11.5).text_color(t.blocked).truncate().child(errorLine)),
+      )
       .child(
         h_flex()
           .h(36)
@@ -316,29 +358,42 @@ export default class Trailhead extends View {
           .mb(6)
           .when(rows.length === 0, (el) => el.child(div().px(14).py(8).text_size(12).text_color(t.dim).child(empty)))
           .children(rows.map(row)),
+      )
+      .child(
+        div()
+          .px(2)
+          .text_size(11)
+          .text_color(t.dim)
+          .child(
+            /^(macos|darwin)$/.test(platform())
+              ? `Enter go · ⌥Enter new space · ⌘Enter start ${agentName} · Esc close`
+              : `Enter go · Alt+Enter new space · Ctrl+Enter start ${agentName} · Esc close`,
+          ),
       );
   }
 }
 
-// projects.json, or the defaults; a broken file is the defaults too.
-async function config() {
-  try {
-    const c = JSON.parse(await readFile(`${appHome()}/projects.json`, "utf8"));
-    const list = (v, d) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()) : d);
-    const depth = Number.isInteger(c?.depth) && c.depth >= 1 && c.depth <= 6 ? c.depth : DEFAULTS.depth;
-    const zoxide = c?.zoxide === "off" ? "off" : "auto";
-    return { roots: list(c?.roots, DEFAULTS.roots), depth, folders: list(c?.folders, []), zoxide };
-  } catch {
-    return DEFAULTS;
-  }
+// The settings: the "settings" in this mod's mod.json, then projects.json in Herdr's folder.
+async function loadSettings() {
+  const text = async (path) => {
+    try {
+      return await readFile(path, "utf8");
+    } catch {
+      return null;
+    }
+  };
+  const folder = join(join(appHome(), "mods"), "trailhead");
+  return readSettings(await text(join(folder, "mod.json")), await text(join(appHome(), "projects.json")));
 }
 
-// Every repo under the roots, plus the listed folders, each as { path, kind, logs, repo }:
+// Every repo under the roots, plus the listed folders, each as { path, kind, logs, repo },
+// and the roots that couldn't be read:
 // kind "repo" (a .git folder), "worktree" (a .git file pointing at its repo's) or
 // "folder"; logs is the reflog that says when it last changed; repo, a worktree's repo. A repo's own folders
 // aren't searched, so a submodule or a vendored checkout inside it is left out.
 async function findProjects({ roots, depth, folders }) {
   const found = [];
+  const unreadable = []; // roots that couldn't be read, in words for the error bar
   let budget = MAX_FOLDERS;
   // `left`: how many more levels below this folder may be searched.
   const walk = async (dir, left, isRoot) => {
@@ -347,7 +402,12 @@ async function findProjects({ roots, depth, folders }) {
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {
-      return; // gone, unreadable, or outside the home folder
+      // Gone, unreadable, or outside the home folder; a root that can't be read is reported.
+      if (isRoot)
+        unreadable.push(
+          inHome(dir) ? `Can't read ${short(dir)}` : `Can't read ${dir}: mods may only read in your home folder`,
+        );
+      return;
     }
     const git = isRoot ? null : entries.find((e) => e.name === ".git");
     if (git) {
@@ -373,7 +433,7 @@ async function findProjects({ roots, depth, folders }) {
     if (!inHome(path) || (await isFolder(path))) found.push({ path, kind: "folder", logs: null });
     seen.add(path);
   }
-  return found;
+  return { found, unreadable };
 }
 
 // A worktree's .git file says "gitdir: <its folder in the repo's .git>", where its reflog is.
