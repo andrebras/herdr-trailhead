@@ -15,6 +15,7 @@
     "mods/trailhead/match.js",
     "mods/trailhead/kept.js",
     "mods/trailhead/settings.js",
-    "mods/trailhead/actions.js"
+    "mods/trailhead/actions.js",
+    "mods/trailhead/remote.js"
   ]
 }
