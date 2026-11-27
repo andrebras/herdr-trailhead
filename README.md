@@ -155,10 +155,18 @@ While it searches, Trailhead:
 - does not search inside a repository, so submodules and other repositories copied inside it are left out;
 - looks at no more than 5,000 folders, so a very large root cannot stall it.
 
+## Other machines
+
+When Herdr is connected to other machines (`hc machine add`), Trailhead lists their projects too, with a Machine column that names where each project is (`local` for this computer). The column shows only while another machine is connected.
+
+Herdr doesn't let mods read another machine's folders, so Trailhead runs one small `find` script there through Herdr, using the same `roots` and `depth` (`~` means that machine's home folder). Each machine is searched at the same time as the others, with a 2-second limit, so a slow or offline machine never delays your local projects; the error line says when one didn't answer. Enter goes to the project's space on that machine, or makes one there. Rows from other machines show no age, because their git logs can't be read.
+
+The remote machine needs `sh` and `find`, which Linux and macOS have.
+
 ## Privacy and permissions
 
 - **Files it reads:** its `mod.json`, `projects.json`, the folder names under your roots, and the `.git` entries and reflogs of the repositories it finds. Herdr only lets mods read files inside your home folder. A root outside it can't be read, and the error line says so. A listed folder or typed path outside it is shown or opened without being checked.
-- **Programs it runs:** `zoxide query -ls`, once per open, when zoxide is installed and the `zoxide` setting is not `"off"`; and on Cmd+Enter, a check that the agent program is installed (`command -v`, or `where` on Windows). Otherwise it asks Herdr to select a space (`space.select`), make one (`space.new`) or add a tab (`tab.new`), and nothing else.
+- **Programs it runs:** on each other machine Herdr is connected to, a `find` script that lists the git repositories under your roots (no file contents are read); `zoxide query -ls`, once per open, when zoxide is installed and the `zoxide` setting is not `"off"`; and on Cmd+Enter, a check that the agent program is installed (`command -v`, or `where` on Windows). Otherwise it asks Herdr to select a space (`space.select`), make one (`space.new`) or add a tab (`tab.new`), and nothing else.
 - **Network:** it makes no network requests.
 - **What it stores:** the last 50 projects you picked, so it can list them first, and the last list it found (names, paths, kinds and ages), so the next open shows it at once. Both are kept in the mod's local storage, which Herdr saves under `~/.config/herdr-app/data/trailhead/`.
 
@@ -166,7 +174,6 @@ While it searches, Trailhead:
 
 These are planned, not built yet:
 
-- Projects and spaces on other machines connected to Herdr.
 - A listing in the [Herdr mods gallery](https://herdr.dev/mods).
 
 ## Development
