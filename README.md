@@ -3,22 +3,31 @@
 [![CI](https://github.com/andrebras/herdr-trailhead/actions/workflows/ci.yml/badge.svg)](https://github.com/andrebras/herdr-trailhead/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-A project picker for the [Herdr](https://herdr.dev) desktop app. Press Cmd+O, type a few letters, press Enter: you are in that project's space, or a new one.
+**Cmd+O, a few letters, Enter: you are in that project's space.** Trailhead is a project picker for the [Herdr](https://herdr.dev) desktop app. It finds your git repos and worktrees on its own, and takes you to the project's open space, or makes one in its folder.
 
-![Trailhead's popup: a search field over a list of projects. Open spaces have a status dot, and each row shows its kind (repo, worktree or folder) and how long ago it last changed. The previous project, acme-web, is first and selected.](preview.png)
+<p align="center">
+  <img src="preview.png" width="640" alt="Trailhead's popup: a search field over a list of projects. acme-web, the project used before, is first and selected. Worktrees show their repo and branch, such as acme-web › fix-login and billing-api › invoice-pdf. Open spaces have a dot, and each row shows its kind (repo, worktree or folder) and how long ago it last changed. The footer lists the keys, including Tab for worktrees.">
+</p>
 
 ## Why Trailhead
 
-- **It finds your projects.** Git repos and worktrees under your code folders, with nothing else to install. [zoxide](https://github.com/ajeetdsouza/zoxide) is optional and only sharpens the order.
-- **Enter never closes anything.** It goes to the project's open space, or makes one in its folder.
-- **Cmd+O, Enter jumps back.** With nothing typed, the project you were in before is selected.
-- **Cmd+Enter starts your agent there:** `claude`, unless you choose another.
-- **`@` shows one machine's projects.** With another machine connected, type `@`, pick a machine, and only its projects stay in the list.
-- **Worktrees show their branch.** A worktree reads `acme-web › fix-login`, and typing part of the branch finds it. Tab on it, or on its repo, lists only that repo and all its worktrees, even those inside the repo or in hidden folders.
+- **It finds your projects, with nothing to install.** It searches your code folders for git repos and worktrees by itself. [zoxide](https://github.com/ajeetdsouza/zoxide), a tool that ranks the folders you visit, is optional and only sharpens the order.
+- **The list is there at once.** The list from your last open draws in the popup's first frame. Then the folders are read again, and rows update in place without moving your selection.
+- **It never closes anything.** Enter goes to the project's open space, or makes a new one. Trailhead never asks Herdr to close a space.
+- **Cmd+O, Enter jumps back.** With nothing typed, the project you were in before is first and selected.
+- **`@` shows one machine's projects.** Herdr can connect to other machines. Trailhead lists their projects too, and `@` narrows the list to one of them.
+- **Worktrees show their branch.** A git worktree is a second folder of the same repo, checked out on another branch. Trailhead shows it as `acme-web › fix-login`, and typing part of the branch finds it.
+- **Cmd+Enter starts your agent there.** It opens the project and runs `claude`, or the coding agent you choose, in it.
 
-Each row shows its space's agent status, its kind and its last change. Projects on the other machines Herdr is connected to are listed too.
+Each row also shows its space's agent status as a coloured dot, its kind and how long ago it last changed.
 
-[herdr-app-navigator](https://github.com/alizdavoodi/herdr-app-navigator) lists zoxide's folders, so it needs zoxide on each machine you want listed. [project-finder](https://github.com/mike-bronner/herdr-plugin-project-finder) makes Enter apply a set of ticks, which also closes the spaces you untick.
+## Worktrees by branch
+
+Tab on a repo that has worktrees, or on one of its worktrees, shows only that repo and its worktrees. The repo comes first, then each worktree by its branch. On this computer, worktrees inside the repo or in hidden folders, such as `.claude/worktrees/`, are listed too, from git's own record of them. Backspace in an empty search removes the repo filter.
+
+<p align="center">
+  <img src="preview-worktrees.png" width="640" alt="Trailhead narrowed to one repo: an acme-web › pill in the search field, then the acme-web repo, and under it its worktrees fix-login, new-checkout and dark-mode, each with its age.">
+</p>
 
 ## Install
 
@@ -43,7 +52,7 @@ Then bind a key in the `global` section of `~/.config/herdr-app/keys.json`. Herd
 "ctrl-alt-o": "mod.open:trailhead"   Linux and Windows
 ```
 
-Herdr's command palette has it too, as "Open a project". If you set `HERDR_APP_HOME`, use that folder instead of `~/.config/herdr-app`. To update, replace `mods/trailhead` with a fresh copy.
+Herdr's command palette has it too, as "Open a project". If you set `HERDR_APP_HOME`, use that folder instead of `~/.config/herdr-app`. To update, replace `mods/trailhead` with a fresh copy; your settings live outside it.
 
 ## Keys
 
@@ -60,7 +69,7 @@ Herdr's command palette has it too, as "Open a project". If you set `HERDR_APP_H
 | Backspace in an empty search                    | Remove the repo filter, then the machine filter                 |
 | Esc                                             | Close                                                           |
 
-The popup's bottom line shows these keys for your platform. `@` and the machine column work only while another machine is connected; with none, `@` is just a letter. The Tab hint shows only when the selected row has worktrees.
+The popup's bottom line shows these keys for your platform. `@` and the Machine column work only while another machine is connected; with none, `@` is just a letter. The Tab hint shows only when the selected row has worktrees.
 
 ## Settings
 
@@ -86,10 +95,21 @@ Settings live in `~/.config/herdr-app/trailhead.json`, outside the mod's folder,
 
 Without `roots`, Trailhead searches whichever of these exist: `~/code`, `~/projects`, `~/src`, `~/dev`, `~/Developer`, `~/work`, `~/git`, `~/repos` and `~/Lab` (and `~/Code`, `~/Projects`). A bad value, or a root you set that is missing or can't be read, shows as one red line at the top of the popup; a bad value falls back to its default.
 
+## How it compares
+
+Several pickers exist for Herdr, and each suits a different habit:
+
+- [herdr-app-navigator](https://github.com/alizdavoodi/herdr-app-navigator) is a desktop mod that lists open spaces, agents and zoxide's folders, on this computer and on connected machines. Folders come from zoxide, so it needs zoxide on each machine you want listed.
+- [project-finder](https://github.com/mike-bronner/herdr-plugin-project-finder) lists git repos and worktrees under one root folder, with a tick on each open one. Enter makes the ticked rows the open set, so it also closes the open projects you untick.
+- [Sesh for Herdr](https://github.com/fullerzz/herdr-plugin-sesh) lists open spaces, sessions you describe in a TOML file, and zoxide's folders, with a live preview of each terminal. Its desktop mod needs its `herdr-sesh` program built and on your `PATH`.
+- [herdr-navigator](https://github.com/thanhdat77/herdr-navigator) searches workspaces, agents, projects, sessions and more. It is a plugin for Herdr in the terminal, not a mod for the desktop app.
+
+Trailhead is for finding projects on disk with nothing else to set up, and opening them without ever closing anything.
+
 ## How it works
 
 - **Finding.** It walks each root up to `depth` levels. A folder with a `.git` folder is a repo; one with a `.git` file is a worktree. It skips hidden folders and `node_modules`, never looks inside a repo, and stops after 5,000 folders. Then it reads git's own list of each repo's worktrees, which also finds those inside a repo or in a hidden folder.
-- **Last change.** The time of the last entry in the repo's reflog: a commit, checkout or pull.
+- **Last change.** The time of the last entry in the repo's reflog, git's log of where its branches pointed: a commit, checkout or pull.
 - **Opening.** The list from last time draws in the first frame. Then the folders are read again, and rows update in place without moving your selection.
 - **Order.** With nothing typed: the previous project, your open spaces, recent picks, then the rest by last change, and the current space last. Typed: a fuzzy match on the name, then on the path, with open spaces, recent picks and zoxide breaking ties. It shows the best 12 rows.
 - **Other machines.** Through Herdr, it runs one small `sh` script on each connected machine, with the same roots and depth and a 2-second limit. Missing roots are skipped quietly there. Their rows show no age. They hide while the machine can't be reached, and leave the list when you remove it from Herdr.
