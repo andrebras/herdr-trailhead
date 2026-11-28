@@ -8,6 +8,7 @@ import {
   typedMachine,
   onMachine,
   repoOf,
+  repoFirst,
   reposWithWorktrees,
   inRepo,
 } from "../mods/trailhead/filter.js";
@@ -92,4 +93,20 @@ test("inRepo keeps a repo and its worktrees, on that machine only", () => {
     ["/h/code/acme-web", "/h/code/login"],
   );
   assert.deepEqual(inRepo(repoRows, "devbox:/h/code/acme-web"), [repoRows[5]]);
+});
+
+test("repoFirst puts the repo first and keeps the order of its worktrees", () => {
+  const rows = [
+    { kind: "worktree", path: "/b" },
+    { kind: "repo", path: "/r" },
+    { kind: "worktree", path: "/a" },
+  ];
+  assert.deepEqual(
+    repoFirst(rows, (rest) => rest, 12).map((r) => r.path),
+    ["/r", "/b", "/a"],
+  );
+  assert.deepEqual(
+    repoFirst(rows, (rest) => [...rest].reverse(), 2).map((r) => r.path),
+    ["/r", "/a"],
+  );
 });

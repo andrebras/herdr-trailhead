@@ -105,6 +105,22 @@ export function reposWithWorktrees(rows) {
 }
 
 /**
+ * A repo's view: the repo's own rows first, then the others as `order` puts them, at most
+ * `shown` in all.
+ * @template {{ kind: string }} R
+ * @param {R[]} rows
+ * @param {(rest: R[], room: number) => R[]} order
+ * @param {number} shown
+ * @returns {R[]}
+ */
+export function repoFirst(rows, order, shown) {
+  const head = rows.filter((r) => r.kind === "repo");
+  const rest = rows.filter((r) => r.kind !== "repo");
+  const room = Math.max(0, shown - head.length);
+  return [...head, ...order(rest, room).slice(0, room)];
+}
+
+/**
  * A repo's rows: the repo itself and its worktrees.
  * @template {RepoRow} R
  * @param {R[]} rows

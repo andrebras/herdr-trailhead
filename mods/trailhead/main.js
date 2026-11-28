@@ -64,6 +64,7 @@ import {
   repoOf,
   reposWithWorktrees,
   inRepo,
+  repoFirst,
 } from "./filter.js";
 
 /** @typedef {import("gpui-kit").AsyncContext} AsyncContext */
@@ -404,7 +405,9 @@ export default class Trailhead extends View {
     const rows = this.repo === null ? mine : inRepo(mine, this.repo.key);
     const typed = this.filter.trim();
     const f = typed.toLowerCase();
-    if (!f) return ordered(rows, this.recent, this.current, SHOWN);
+    if (!f && this.repo === null) return ordered(rows, this.recent, this.current, SHOWN);
+    // In a repo's view the repo comes first, then its worktrees.
+    if (!f) return repoFirst(rows, (rest, n) => ordered(rest, this.recent, this.current, n), SHOWN);
     // A typed path is a folder on this computer, so not while another machine is the filter.
     const here = this.machine === null || this.machine === LOCAL;
     if (here && isPath(typed)) return pathRows(rows, trim(expand(typed)), paths(), SHOWN);
@@ -413,7 +416,8 @@ export default class Trailhead extends View {
     if (built.scope !== scope) built.index = undefined;
     built.scope = scope;
     built.index ??= rankIndex(rows, short, picks, this.zoxide);
-    return bestIn(built.index, f, SHOWN);
+    const best = bestIn(built.index, f, SHOWN);
+    return this.repo === null ? best : repoFirst(best, (rest) => rest, SHOWN);
   }
 
   /**
@@ -523,9 +527,9 @@ export default class Trailhead extends View {
     // The error bar: one line, the most recent problem first, with how many more there are.
     const errors = [this.problem, ...this.problems, ...this.remoteProblems.values()].filter((e) => e !== null);
     // The Machine column shows only once another machine is connected, and not while the list
-    // is filtered to one machine.
+    // is filtered to one machine or narrowed to one repo (which is on one machine).
     const connected = this.connected();
-    const machineColumn = connected && this.machine === null;
+    const machineColumn = connected && this.machine === null && this.repo === null;
     const errorLine = errors.length > 1 ? `${errors[0]} (and ${errors.length - 1} more)` : (errors[0] ?? "");
     const agentName = base(this.settings.agent[0] ?? "agent");
     const missing = this.missing !== null && this.missing === this.filter.trim();
@@ -535,7 +539,7 @@ export default class Trailhead extends View {
     const footer = mac
       ? ["Enter go", "⌥Enter new space", `⌘Enter start ${agentName}`]
       : ["Enter go", "Alt+Enter new space", `Ctrl+Enter start ${agentName}`];
-    if (machineColumn) footer.push("@ machine");
+    if (connected && this.machine === null) footer.push("@ machine");
     if (this.worktreesOf(rows[this.at])) footer.push(mac ? "⇥ worktrees" : "Tab worktrees");
     if (this.machine !== null || this.repo !== null) footer.push(mac ? "⌫ remove filter" : "Backspace remove filter");
     footer.push("Esc close");
@@ -561,7 +565,13 @@ export default class Trailhead extends View {
     // The name (a worktree's repo › branch), with the letters that match what you typed in the
     // accent colour.
     const typed = (choosing ?? this.filter.trim()).toLowerCase();
-    const shownName = (/** @type {Shown} */ r) => (isTyped(r) || isMachine(r) ? r.name : r.label);
+    // In a repo's view a worktree shows only its branch (its folder's name when detached),
+    // indented under the repo: the pill already names the repo.
+    const sub = (/** @type {Shown} */ r) => this.repo !== null && r.kind === "worktree";
+    const shownName = (/** @type {Shown} */ r) => {
+      if (isTyped(r) || isMachine(r)) return r.name;
+      return sub(r) ? (r.branch ?? base(r.path)) : r.label;
+    };
     const name = (/** @type {Shown} */ r) =>
       h_flex()
         .flex_1()
@@ -605,6 +615,7 @@ export default class Trailhead extends View {
         .id(`th-${i}`)
         .mx(4)
         .px(10)
+        .when(sub(r), (el) => el.pl(32))
         .h(34)
         .rounded(7)
         .gap(10)
