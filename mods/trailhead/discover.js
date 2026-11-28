@@ -3,7 +3,7 @@
 // folders and it knows nothing about Herdr.
 
 import { presentRoots } from "./settings.js";
-import { headBranch, reflogTime, uniqueNames, worktreeRepo } from "./match.js";
+import { headBranch, reflogTime, uniqueNames, worktreeFolder, worktreeRepo } from "./match.js";
 
 /**
  * How to read this computer's folders and files: Herdr's `fs/promises`, or node's in tests.
@@ -75,6 +75,16 @@ export async function findProjects({ roots, depth, folders }, defaultRoots, { fi
     ? presentRoots(roots, await files.names(home).catch(() => /** @type {string[]} */ ([])))
     : roots;
   for (const root of searched) await walk(trim(expand(root)), depth, true);
+  // Git's own record of each repo's worktrees also finds those the walk can't: inside a repo
+  // or in a hidden folder. Each is listed once.
+  const walked = new Set(found.map((r) => r.path));
+  for (const r of found.filter((f) => f.kind === "repo")) {
+    for (const w of await recordedWorktrees(r.path, files, paths)) {
+      if (walked.has(w.path)) continue;
+      walked.add(w.path);
+      found.push(w);
+    }
+  }
   found.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const seen = new Set(found.map((r) => r.path));
   for (const f of folders) {
@@ -113,6 +123,35 @@ async function worktree(dir, files, { join, isPath }) {
   } catch {
     return { path: dir, kind: "worktree", logs: null };
   }
+}
+
+/**
+ * The worktrees git records for a repo, in "<repo>/.git/worktrees/<name>/": each one's
+ * `gitdir` says where it is, and its `HEAD` names its branch. Those whose folder can't be read
+ * (gone, or outside the home folder, where mods may not read) are left out.
+ * @param {string} repo
+ * @param {Files} files
+ * @param {Paths} paths
+ * @returns {Promise<Found[]>}
+ */
+export async function recordedWorktrees(repo, files, { join, inHome }) {
+  const dir = join(join(repo, ".git"), "worktrees");
+  const names = await files.names(dir).catch(() => /** @type {string[]} */ ([]));
+  /** @type {Found[]} */
+  const out = [];
+  for (const name of names) {
+    const at = join(dir, name);
+    const path = worktreeFolder(await files.read(join(at, "gitdir")).catch(() => ""), at);
+    if (!path || !inHome(path)) continue;
+    const there = await files.names(path).then(
+      () => true,
+      () => false,
+    );
+    if (!there) continue;
+    const branch = headBranch(await files.read(join(at, "HEAD")).catch(() => ""));
+    out.push({ path, kind: "worktree", repo, branch, logs: join(join(at, "logs"), "HEAD") });
+  }
+  return out;
 }
 
 /**

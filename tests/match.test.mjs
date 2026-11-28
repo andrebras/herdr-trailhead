@@ -12,6 +12,7 @@ import {
   pieces,
   uniqueNames,
   worktreeRepo,
+  worktreeFolder,
   headBranch,
   zoxideBonus,
 } from "../mods/trailhead/match.js";
@@ -159,6 +160,15 @@ test("worktreeRepo reads the repo folder from a worktree's gitdir", () => {
   assert.equal(worktreeRepo("/h/code/login/../acme/.git/worktrees/login"), "/h/code/acme");
   assert.equal(worktreeRepo("/h/code/login/./../../acme/.git/worktrees/login"), "/h/acme");
   assert.equal(worktreeRepo("C:\\code\\login\\../acme/.git/worktrees/login"), "C:\\code\\acme");
+});
+
+test("worktreeFolder reads where a worktree is from git's gitdir file", () => {
+  const at = "/h/code/acme/.git/worktrees/login";
+  assert.equal(worktreeFolder("/h/code/login/.git\n", at), "/h/code/login");
+  assert.equal(worktreeFolder("../../../.claude/worktrees/b/.git\n", at), "/h/code/acme/.claude/worktrees/b");
+  assert.equal(worktreeFolder("C:\\code\\login\\.git", "C:\\code\\acme\\.git\\worktrees\\login"), "C:\\code\\login");
+  assert.equal(worktreeFolder("", at), null);
+  assert.equal(worktreeFolder("/h/code/login\n", at), null);
 });
 
 test("headBranch reads the branch a HEAD file names, and none for a detached HEAD", () => {

@@ -370,6 +370,22 @@ export function worktreeRepo(gitdir) {
 }
 
 /**
+ * The folder of a worktree, from the `gitdir` file git keeps for it in
+ * "<repo>/.git/worktrees/<name>/", which holds the path to the worktree's .git file, either
+ * absolute or relative to that folder (`at`). Null when it names no .git file.
+ * @param {string} text
+ * @param {string} at
+ * @returns {string | null}
+ */
+export function worktreeFolder(text, at) {
+  const line = text.trim();
+  if (!line) return null;
+  const abs = /^([/\\]|[A-Za-z]:[/\\])/.test(line) ? line : `${at}/${line}`;
+  const dir = abs.replace(/[/\\]\.git$/, "");
+  return dir === abs ? null : withoutDots(dir);
+}
+
+/**
  * A path with its "." and "name/.." parts taken out, in its own separator.
  * @param {string} path
  */
