@@ -90,6 +90,9 @@ export function buildRows(open, projects, { machines, touched, sep, prepare }) {
   const up = new Set(machines.filter((m) => m.layout !== "unavailable").map((m) => m.name));
   const shown = projects.filter((p) => !p.machine || up.has(p.machine));
   const kindOf = new Map(shown.map((p) => [projectKey(p.machine, p.path), p.kind]));
+  // A space in a worktree belongs to the worktree's repo (for the repo filter) and shows its
+  // branch, as the worktree's own row does.
+  const treeOf = new Map(shown.map((p) => [projectKey(p.machine, p.path), { repo: p.repo, branch: p.branch }]));
   const homeOf = new Map(shown.filter((p) => p.machine).map((p) => [p.machine, p.home]));
   /** @type {(P & { space?: Space, pkey: string | null, touched: number | null })[]} */
   const rows = open.map(({ space, folders }) => {
@@ -99,7 +102,9 @@ export function buildRows(open, projects, { machines, touched, sep, prepare }) {
     const pkey = path ? projectKey(machine, path) : null;
     const kind = (pkey && kindOf.get(pkey)) || "space";
     const home = homeOf.get(machine) ?? null;
-    const row = prepare({ kind, name: space.name, path, machine, home });
+    const tree = pkey ? treeOf.get(pkey) : undefined;
+    const repo = tree?.repo ?? null;
+    const row = prepare({ kind, name: space.name, path, machine, home, repo, branch: tree?.branch ?? null });
     // Keyed by its id, not its folder: two spaces can share a folder, or have none.
     return {
       ...row,
@@ -117,10 +122,22 @@ export function buildRows(open, projects, { machines, touched, sep, prepare }) {
 }
 
 /**
- * Makes projects ready for matching: each gets its project key, and its name and its path as
- * shown (home as ~, on its own machine) in lowercase, worked out once rather than per key.
+ * What a row shows as its name: a worktree with a known branch shows its repo and that branch
+ * ("acme-web › fix-login"); anything else, its name.
+ * @param {Project} p
+ */
+export function label(p) {
+  if (p.kind !== "worktree" || !p.repo || !p.branch) return p.name;
+  const repo = p.repo.split(/[/\\]/).filter(Boolean).pop() ?? p.repo;
+  return `${repo} › ${p.branch}`;
+}
+
+/**
+ * Makes projects ready for matching: each gets its project key, its label (see `label`), and
+ * its label and its path as shown (home as ~, on its own machine) in lowercase, worked out
+ * once rather than per key. The label is what is matched, so a worktree's branch is too.
  * @param {(path: string) => string} short this computer's path as shown
- * @returns {<T extends Project>(p: T) => T & { key: string, lname: string, lpath: string }}
+ * @returns {<T extends Project>(p: T) => T & { key: string, label: string, lname: string, lpath: string }}
  */
 export function preparer(short) {
   /** @type {Map<string, (path: string) => string>} */
@@ -133,12 +150,16 @@ export function preparer(short) {
     if (!s) there.set(p.home, (s = makePaths(p.home).short));
     return s(p.path);
   };
-  return (p) => ({
-    ...p,
-    key: projectKey(p.machine, p.path),
-    lname: p.name.toLowerCase(),
-    lpath: shown(p).toLowerCase(),
-  });
+  return (p) => {
+    const text = label(p);
+    return {
+      ...p,
+      key: projectKey(p.machine, p.path),
+      label: text,
+      lname: text.toLowerCase(),
+      lpath: shown(p).toLowerCase(),
+    };
+  };
 }
 
 /**

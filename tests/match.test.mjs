@@ -12,6 +12,8 @@ import {
   pieces,
   uniqueNames,
   worktreeRepo,
+  worktreeFolder,
+  headBranch,
   zoxideBonus,
 } from "../mods/trailhead/match.js";
 
@@ -155,6 +157,25 @@ test("worktreeRepo reads the repo folder from a worktree's gitdir", () => {
   assert.equal(worktreeRepo("/h/code/acme/.git/worktrees/login"), "/h/code/acme");
   assert.equal(worktreeRepo("C:\\code\\acme\\.git\\worktrees\\login"), "C:\\code\\acme");
   assert.equal(worktreeRepo("/h/elsewhere/gitdir"), null);
+  assert.equal(worktreeRepo("/h/code/login/../acme/.git/worktrees/login"), "/h/code/acme");
+  assert.equal(worktreeRepo("/h/code/login/./../../acme/.git/worktrees/login"), "/h/acme");
+  assert.equal(worktreeRepo("C:\\code\\login\\../acme/.git/worktrees/login"), "C:\\code\\acme");
+});
+
+test("worktreeFolder reads where a worktree is from git's gitdir file", () => {
+  const at = "/h/code/acme/.git/worktrees/login";
+  assert.equal(worktreeFolder("/h/code/login/.git\n", at), "/h/code/login");
+  assert.equal(worktreeFolder("../../../.claude/worktrees/b/.git\n", at), "/h/code/acme/.claude/worktrees/b");
+  assert.equal(worktreeFolder("C:\\code\\login\\.git", "C:\\code\\acme\\.git\\worktrees\\login"), "C:\\code\\login");
+  assert.equal(worktreeFolder("", at), null);
+  assert.equal(worktreeFolder("/h/code/login\n", at), null);
+});
+
+test("headBranch reads the branch a HEAD file names, and none for a detached HEAD", () => {
+  assert.equal(headBranch("ref: refs/heads/fix-login\n"), "fix-login");
+  assert.equal(headBranch("ref: refs/heads/feature/a b\n"), "feature/a b");
+  assert.equal(headBranch("3f2a1c0d9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f\n"), null);
+  assert.equal(headBranch(""), null);
 });
 
 test("a space where an agent is blocked ranks above other open spaces", () => {

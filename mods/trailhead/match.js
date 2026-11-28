@@ -359,10 +359,55 @@ export function uniqueNames(items) {
 
 /**
  * The repo folder a worktree belongs to, from its gitdir ("<repo>/.git/worktrees/<name>").
+ * A gitdir written relative to the worktree ("<worktree>/../acme/.git/...") gives the same
+ * folder as an absolute one, so the repo and its worktrees match.
  * @param {string} gitdir
  * @returns {string | null}
  */
 export function worktreeRepo(gitdir) {
   const m = /^(.*?)[/\\]\.git[/\\]worktrees[/\\][^/\\]+[/\\]?$/.exec(gitdir);
+  return m ? withoutDots(m[1]) : null;
+}
+
+/**
+ * The folder of a worktree, from the `gitdir` file git keeps for it in
+ * "<repo>/.git/worktrees/<name>/", which holds the path to the worktree's .git file, either
+ * absolute or relative to that folder (`at`). Null when it names no .git file.
+ * @param {string} text
+ * @param {string} at
+ * @returns {string | null}
+ */
+export function worktreeFolder(text, at) {
+  const line = text.trim();
+  if (!line) return null;
+  const abs = /^([/\\]|[A-Za-z]:[/\\])/.test(line) ? line : `${at}/${line}`;
+  const dir = abs.replace(/[/\\]\.git$/, "");
+  return dir === abs ? null : withoutDots(dir);
+}
+
+/**
+ * A path with its "." and "name/.." parts taken out, in its own separator.
+ * @param {string} path
+ */
+function withoutDots(path) {
+  /** @type {string[]} */
+  const out = [];
+  for (const part of path.split(/[/\\]/)) {
+    const last = out[out.length - 1];
+    if (part === ".") continue;
+    if (part === ".." && last !== undefined && last !== "" && last !== "..") out.pop();
+    else out.push(part);
+  }
+  return out.join(path.includes("\\") ? "\\" : "/");
+}
+
+/**
+ * The branch a git HEAD file names ("ref: refs/heads/<branch>"), or null when it names none
+ * (a detached HEAD holds a commit instead).
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function headBranch(text) {
+  const m = /^ref: refs\/heads\/(.+?)\s*$/m.exec(text);
   return m ? m[1] : null;
 }

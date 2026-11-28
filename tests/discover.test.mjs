@@ -39,6 +39,8 @@ test("finds repos and worktrees, not inside a repo, hidden folders or node_modul
     write("code/login/.git", "");
   });
   writeFileSync(join(home, "code/login/.git"), `gitdir: ${home}/code/api/.git/worktrees/login\n`);
+  mkdirSync(join(home, "code/api/.git/worktrees/login"), { recursive: true });
+  writeFileSync(join(home, "code/api/.git/worktrees/login/HEAD"), "ref: refs/heads/fix-login\n");
   const { found, unreadable, stopped } = await find(home, { roots: ["~/code"] });
   assert.deepEqual(
     found.map((p) => `${p.kind} ${p.path.slice(home.length)}`),
@@ -46,8 +48,41 @@ test("finds repos and worktrees, not inside a repo, hidden folders or node_modul
   );
   assert.equal(found[0].logs, join(home, "code/api/.git/logs/HEAD"));
   assert.equal(found[2].repo, join(home, "code/api"));
+  assert.equal(found[2].branch, "fix-login");
   assert.equal(found[2].logs, join(home, "code/api/.git/worktrees/login/logs/HEAD"));
   assert.deepEqual([unreadable, stopped], [[], false]);
+});
+
+test("git's record of a repo's worktrees finds those inside the repo or in hidden folders", async () => {
+  const home = homeWith((mk, write) => {
+    mk("code/api/.claude/worktrees/b");
+    mk(".codex/worktrees/api");
+    mk("code/login");
+    for (const n of ["a", "b", "gone", "away", "login"]) mk(`code/api/.git/worktrees/${n}`);
+    write("code/api/.git/worktrees/b/gitdir", "../../../.claude/worktrees/b/.git\n");
+    write("code/api/.git/worktrees/b/HEAD", "ref: refs/heads/fix-b\n");
+    write("code/api/.git/worktrees/gone/gitdir", "../../../nowhere/.git\n");
+    write("code/api/.git/worktrees/away/gitdir", "/private/tmp/elsewhere/.git\n");
+    write("code/api/.git/worktrees/login/HEAD", "ref: refs/heads/fix-login\n");
+    write("code/login/.git", "");
+  });
+  // a is absolute and detached; login is also found by the walk, and listed once.
+  writeFileSync(join(home, "code/api/.git/worktrees/a/gitdir"), `${home}/.codex/worktrees/api/.git\n`);
+  writeFileSync(join(home, "code/api/.git/worktrees/a/HEAD"), "3f2a1c0d9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f\n");
+  writeFileSync(join(home, "code/api/.git/worktrees/login/gitdir"), `${home}/code/login/.git\n`);
+  writeFileSync(join(home, "code/login/.git"), `gitdir: ${home}/code/api/.git/worktrees/login\n`);
+  const { found } = await find(home, { roots: ["~/code"] });
+  assert.deepEqual(
+    found.map((p) => [p.kind, p.path.slice(home.length), p.branch ?? null]),
+    [
+      ["worktree", "/.codex/worktrees/api", null],
+      ["repo", "/code/api", null],
+      ["worktree", "/code/api/.claude/worktrees/b", "fix-b"],
+      ["worktree", "/code/login", "fix-login"],
+    ],
+  );
+  assert.equal(found[2].repo, join(home, "code/api"));
+  assert.equal(found[2].logs, join(home, "code/api/.git/worktrees/b/logs/HEAD"));
 });
 
 test("a root you set that is missing is reported; missing default roots are not", async () => {

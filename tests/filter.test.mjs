@@ -1,6 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LOCAL, isMachine, machineQuery, machineRows, typedMachine, onMachine } from "../mods/trailhead/filter.js";
+import {
+  LOCAL,
+  isMachine,
+  machineQuery,
+  machineRows,
+  typedMachine,
+  onMachine,
+  repoOf,
+  repoFirst,
+  reposWithWorktrees,
+  inRepo,
+} from "../mods/trailhead/filter.js";
 
 const names = [LOCAL, "devbox", "dev-gpu", "gpu-box"];
 
@@ -52,4 +63,50 @@ test("onMachine keeps the rows of one machine, local being this computer", () =>
     ["c"],
   );
   assert.deepEqual(onMachine(rows, "gone"), []);
+});
+
+const repoRows = [
+  { kind: "repo", path: "/h/code/acme-web" },
+  { kind: "worktree", path: "/h/code/login", repo: "/h/code/acme-web" },
+  { kind: "worktree", path: "/h/code/lost", repo: null },
+  { kind: "repo", path: "/h/code/notes" },
+  { kind: "folder", path: "/h/notes" },
+  { kind: "repo", path: "/h/code/acme-web", machine: "devbox" },
+];
+
+test("repoOf names a repo's own folder, or a worktree's repo, on its machine", () => {
+  assert.deepEqual(repoOf(repoRows[0]), { key: "/h/code/acme-web", name: "acme-web" });
+  assert.deepEqual(repoOf(repoRows[1]), { key: "/h/code/acme-web", name: "acme-web" });
+  assert.deepEqual(repoOf(repoRows[5]), { key: "devbox:/h/code/acme-web", name: "acme-web" });
+  assert.equal(repoOf(repoRows[2]), null);
+  assert.equal(repoOf(repoRows[4]), null);
+  assert.equal(repoOf({ kind: "worktree", path: "C:\\code\\login", repo: "C:\\code\\acme" })?.name, "acme");
+});
+
+test("only repos with a worktree in the list can be narrowed to", () => {
+  assert.deepEqual([...reposWithWorktrees(repoRows)], ["/h/code/acme-web"]);
+});
+
+test("inRepo keeps a repo and its worktrees, on that machine only", () => {
+  assert.deepEqual(
+    inRepo(repoRows, "/h/code/acme-web").map((r) => r.path),
+    ["/h/code/acme-web", "/h/code/login"],
+  );
+  assert.deepEqual(inRepo(repoRows, "devbox:/h/code/acme-web"), [repoRows[5]]);
+});
+
+test("repoFirst puts the repo first and keeps the order of its worktrees", () => {
+  const rows = [
+    { kind: "worktree", path: "/b" },
+    { kind: "repo", path: "/r" },
+    { kind: "worktree", path: "/a" },
+  ];
+  assert.deepEqual(
+    repoFirst(rows, (rest) => rest, 12).map((r) => r.path),
+    ["/r", "/b", "/a"],
+  );
+  assert.deepEqual(
+    repoFirst(rows, (rest) => [...rest].reverse(), 2).map((r) => r.path),
+    ["/r", "/a"],
+  );
 });

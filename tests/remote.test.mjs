@@ -24,6 +24,42 @@ test("parseFound reads home, repos, worktrees and unreadable roots", () => {
   });
 });
 
+test("parseFound reads a worktree's repo and branch from the lines after it", () => {
+  const out = ["H /h", "W /h/code/login", "D /h/code/api/.git/worktrees/login", "B fix-login", "R /h/code/api"];
+  assert.deepEqual(parseFound(out.join("\n")).found, [
+    { path: "/h/code/api", kind: "repo" },
+    { path: "/h/code/login", kind: "worktree", repo: "/h/code/api", branch: "fix-login" },
+  ]);
+});
+
+test("the find script prints a worktree's gitdir and branch, and skips a detached HEAD's", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "trailhead-")));
+  const mk = (p) => mkdirSync(join(home, p), { recursive: true });
+  mk("code/api/.git/worktrees/login");
+  mk("code/api/.git/worktrees/old");
+  mk("code/login");
+  mk("code/old");
+  writeFileSync(join(home, "code/login/.git"), "gitdir: ../api/.git/worktrees/login\n");
+  writeFileSync(join(home, "code/api/.git/worktrees/login/HEAD"), "ref: refs/heads/fix-login\n");
+  writeFileSync(join(home, "code/old/.git"), `gitdir: ${home}/code/api/.git/worktrees/old\n`);
+  writeFileSync(join(home, "code/api/.git/worktrees/old/HEAD"), "3f2a1c0d9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f\n");
+  const out = execFileSync("sh", ["-c", findScript(["~/code"], 2)], {
+    env: { ...process.env, HOME: home },
+    encoding: "utf8",
+  });
+  const trees = parseFound(out).found.filter((p) => p.kind === "worktree");
+  assert.deepEqual(
+    trees.map((p) => [p.path.slice(home.length), p.branch ?? null]),
+    [
+      ["/code/login", "fix-login"],
+      ["/code/old", null],
+    ],
+  );
+  // A relative gitdir ("../api/...") names the same repo as an absolute one.
+  assert.equal(trees[0].repo, join(home, "code/api"));
+  assert.equal(trees[1].repo, join(home, "code/api"));
+});
+
 test("parseFound leaves out repos inside another repo", () => {
   const out = "R /c/app\nR /c/app/vendor/lib\nR /c/apple\n";
   assert.deepEqual(

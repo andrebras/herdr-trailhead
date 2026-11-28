@@ -9,7 +9,7 @@ const VERSION = 1;
 /**
  * A project as found on disk and kept between opens.
  * @typedef {{ path: string, kind: string, name: string, logs?: string | null, repo?: string | null,
- *   machine?: string | null, home?: string | null, touched?: number | null }} Project
+ *   branch?: string | null, machine?: string | null, home?: string | null, touched?: number | null }} Project
  */
 
 /**
@@ -25,6 +25,7 @@ export function keptText(projects, touched) {
     name: p.name,
     logs: p.logs ?? null,
     repo: p.repo ?? null,
+    branch: p.branch ?? null,
     machine: p.machine ?? null,
     home: p.home ?? null,
     touched: touched.get(projectKey(p.machine, p.path)) ?? p.touched ?? null,
@@ -55,6 +56,7 @@ export function readKept(text) {
               name: r.name,
               logs: str(r.logs) ? r.logs : null,
               repo: str(r.repo) ? r.repo : null,
+              branch: str(r.branch) ? r.branch : null,
               machine: str(r.machine) ? r.machine : null,
               home: str(r.home) ? r.home : null,
               touched: typeof r.touched === "number" ? r.touched : null,
