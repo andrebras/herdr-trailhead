@@ -27,7 +27,7 @@ Trailhead is a mod for the Herdr desktop app. Reports are welcome on anything th
 
 What Trailhead does, by design:
 
-- **Reads** `trailhead.json` in Herdr's folder (and `projects.json` there, a legacy fallback), the folder names under the roots, and the `.git` entries and reflogs of the repos it finds. Herdr lets mods read only inside your home folder.
+- **Reads** `trailhead.json` in Herdr's folder, the folder names under the roots, and the `.git` entries and reflogs of the repos it finds. Herdr lets mods read only inside your home folder.
 - **Runs** `zoxide query -ls` when zoxide is installed; on Cmd+Enter, `command -v` (or `where` on Windows) to check that the agent program is installed; and on each other machine Herdr is connected to, a small `sh` script that lists the repos under the roots. The roots are quoted before they go into that script.
 - **Asks Herdr** only to select a space, make a new one or add a tab.
 - **Stores** two things in the mod's local storage, which Herdr keeps in its own folder: the projects and spaces you picked recently, and the last list it found (each project's path, name, kind, machine, reflog path and age).

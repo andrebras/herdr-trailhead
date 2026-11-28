@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Type `@` to show only one machine's projects: `@` lists the machines, `@dev` narrows them, and Space, Tab or Enter picks one. A click on a row's machine name does the same. The machine shows as a pill in the search field; Backspace in an empty search removes it. Only while another machine is connected.
 
+### Removed
+
+- `projects.json` is no longer read; settings live only in `trailhead.json` in Herdr's folder. The file only ever existed for a picker in a Herdr fork, which is gone.
+
 ## [0.1.0] - 2026-11-27
 
 The first release.

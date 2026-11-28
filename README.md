@@ -96,7 +96,7 @@ Without `roots`, Trailhead searches whichever of these exist: `~/code`, `~/proje
 
 ## What it reads and runs
 
-- **Reads:** `trailhead.json` (and `projects.json`, a legacy fallback) in Herdr's folder, the folder names under your roots, and the `.git` entries and reflogs of the repos it finds. Herdr lets mods read only inside your home folder.
+- **Reads:** `trailhead.json` in Herdr's folder, the folder names under your roots, and the `.git` entries and reflogs of the repos it finds. Herdr lets mods read only inside your home folder.
 - **Runs:** `zoxide query -ls` once per open, when zoxide is installed. On Cmd+Enter, `command -v` (`where` on Windows) to check that the agent is installed. On each other machine, the `sh` script above.
 - **Asks Herdr to:** select a space, make a space or add a tab. Nothing else, and never to close anything.
 - **Stores:** your recent picks and the last list it found, in the mod's storage in Herdr's folder. It makes no network requests.
