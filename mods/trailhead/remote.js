@@ -2,6 +2,8 @@
 // one small sh script there through Herdr and reads what it prints. Knows nothing about Herdr,
 // so tests can run it under node.
 
+import { worktreeRepo } from "./match.js";
+
 /**
  * A word for sh, quoted so spaces and quotes in it stay as they are.
  * @param {string} s
@@ -22,7 +24,9 @@ export function shellPath(root) {
  * The script that lists the projects under the roots on another machine, as the local search
  * does: `depth` levels down, skipping hidden folders, node_modules and links, and never looking
  * inside a repo. It prints "H <home>" first, then a line per repo ("R <path>") or worktree
- * ("W <path>"), and "E <root>" for a root that is there but can't be read. A missing root
+ * ("W <path>", then "D <its gitdir>" and, when its HEAD names one, "B <its branch>", read with
+ * sh's own `read` so no program starts per worktree), and "E <root>" for a root that is there
+ * but can't be read. A missing root
  * prints nothing: roots often differ between machines.
  * With `present` (the default roots, each "~/<name>"), only the ones in the home folder under
  * exactly that name are searched, so ~/code and ~/Code on a case-insensitive disk count once.
@@ -39,9 +43,16 @@ export function findScript(roots, depth, present = false) {
     "    d=${d%/}",
     '    if [ -L "$d" ] || [ ! -d "$d" ] || [ "${d##*/}" = node_modules ]; then continue; fi',
     `    if [ -d "$d/.git" ]; then printf 'R %s\\n' "$d"`,
-    `    elif [ -f "$d/.git" ]; then printf 'W %s\\n' "$d"`,
+    `    elif [ -f "$d/.git" ]; then printf 'W %s\\n' "$d"; worktree "$d"`,
     '    elif [ "$2" -gt 1 ]; then walk "$d" $(($2 - 1)); fi',
     "  done",
+    "}",
+    "worktree() {",
+    '  wg=; read -r wg < "$1/.git"; wg=${wg#gitdir: }',
+    `  case $wg in '') return ;; /*) ;; *) wg=$1/$wg ;; esac`,
+    `  printf 'D %s\\n' "$wg"`,
+    '  wh=; read -r wh 2>/dev/null < "$wg/HEAD"',
+    `  case $wh in 'ref: refs/heads/'*) printf 'B %s\\n' "\${wh#ref: refs/heads/}" ;; esac`,
     "}",
     "root() {",
     '  if [ ! -e "$1" ]; then :',
@@ -60,14 +71,16 @@ export function findScript(roots, depth, present = false) {
 
 /**
  * What the script printed, as the machine's home folder, its projects (nothing inside another
- * repo, as the local search skips those), and the roots it couldn't read.
+ * repo, as the local search skips those; a worktree with its repo and branch when known), and
+ * the roots it couldn't read.
+ * @typedef {{ path: string, kind: "repo" | "worktree", repo?: string | null, branch?: string }} RemoteFound
  * @param {string} text
- * @returns {{ home: string | null, found: { path: string, kind: "repo" | "worktree" }[], unreadable: string[] }}
+ * @returns {{ home: string | null, found: RemoteFound[], unreadable: string[] }}
  */
 export function parseFound(text) {
   /** @type {string | null} */
   let home = null;
-  /** @type {{ path: string, kind: "repo" | "worktree" }[]} */
+  /** @type {RemoteFound[]} */
   const all = [];
   /** @type {string[]} */
   const unreadable = [];
@@ -78,11 +91,17 @@ export function parseFound(text) {
     else if (kind === "E ") unreadable.push(rest);
     else if ((kind === "R " || kind === "W ") && rest)
       all.push({ path: rest, kind: kind === "R " ? "repo" : "worktree" });
+    else if ((kind === "D " || kind === "B ") && rest && all.at(-1)?.kind === "worktree") {
+      // Each describes the worktree just before it.
+      const w = /** @type {RemoteFound} */ (all.at(-1));
+      if (kind === "D ") w.repo = worktreeRepo(rest);
+      else w.branch = rest;
+    }
   }
   // A folder sorts before everything inside it, so each one's parents are seen first.
   all.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const kept = new Set();
-  /** @type {{ path: string, kind: "repo" | "worktree" }[]} */
+  /** @type {RemoteFound[]} */
   const found = [];
   for (const p of all) {
     const parts = p.path.split("/");
