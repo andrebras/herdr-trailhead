@@ -13,8 +13,9 @@ A project picker for the [Herdr](https://herdr.dev) desktop app. Press Cmd+O, ty
 - **Enter never closes anything.** It goes to the project's open space, or makes one in its folder.
 - **Cmd+O, Enter jumps back.** With nothing typed, the project you were in before is selected.
 - **Cmd+Enter starts your agent there:** `claude`, unless you choose another.
+- **`@` shows one machine's projects.** With another machine connected, type `@`, pick a machine, and only its projects stay in the list.
 
-Each row shows its space's agent status, its kind and its last change. Projects on the other machines Herdr is connected to are listed too: type `@` and pick a machine to see only its projects.
+Each row shows its space's agent status, its kind and its last change. Projects on the other machines Herdr is connected to are listed too.
 
 [herdr-app-navigator](https://github.com/alizdavoodi/herdr-app-navigator) lists zoxide's folders, so it needs zoxide on each machine you want listed. [project-finder](https://github.com/mike-bronner/herdr-plugin-project-finder) makes Enter apply a set of ticks, which also closes the spaces you untick.
 
