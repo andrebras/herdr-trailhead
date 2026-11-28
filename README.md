@@ -14,6 +14,7 @@ A project picker for the [Herdr](https://herdr.dev) desktop app. Press Cmd+O, ty
 - **Cmd+O, Enter jumps back.** With nothing typed, the project you were in before is selected.
 - **Cmd+Enter starts your agent there:** `claude`, unless you choose another.
 - **`@` shows one machine's projects.** With another machine connected, type `@`, pick a machine, and only its projects stay in the list.
+- **Worktrees show their branch.** A worktree reads `acme-web › fix-login`, and typing part of the branch finds it. Tab on it, or on its repo, lists only that repo and its worktrees.
 
 Each row shows its space's agent status, its kind and its last change. Projects on the other machines Herdr is connected to are listed too.
 
@@ -46,19 +47,20 @@ Herdr's command palette has it too, as "Open a project". If you set `HERDR_APP_H
 
 ## Keys
 
-| Key                                        | What it does                                                    |
-| ------------------------------------------ | --------------------------------------------------------------- |
-| Enter, or a click                          | Go to the project's space, or make one in its folder            |
-| Alt+Enter or Shift+Enter                   | Make a new space there, even if one is open                     |
-| Cmd+Enter (Ctrl+Enter on Linux/Windows)    | Go there and start your agent, in a new tab or a new space      |
-| ↑ ↓, Ctrl+P / Ctrl+N                       | Move the selection                                              |
-| Type a path, such as `~/code/app`          | List that folder first, so Enter opens a space there            |
-| `@`, then Space, Tab or Enter on a machine | Show only that machine's projects (`@dev` narrows the machines) |
-| A click on a row's machine                 | Show only that machine's projects                               |
-| Backspace in an empty search               | Remove the machine filter                                       |
-| Esc                                        | Close                                                           |
+| Key                                             | What it does                                                    |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| Enter, or a click                               | Go to the project's space, or make one in its folder            |
+| Alt+Enter or Shift+Enter                        | Make a new space there, even if one is open                     |
+| Cmd+Enter (Ctrl+Enter on Linux/Windows)         | Go there and start your agent, in a new tab or a new space      |
+| ↑ ↓, Ctrl+P / Ctrl+N                            | Move the selection                                              |
+| Type a path, such as `~/code/app`               | List that folder first, so Enter opens a space there            |
+| `@`, then Space, Tab or Enter on a machine      | Show only that machine's projects (`@dev` narrows the machines) |
+| A click on a row's machine                      | Show only that machine's projects                               |
+| Tab on a repo with worktrees, or on one of them | Show only that repo and its worktrees                           |
+| Backspace in an empty search                    | Remove the repo filter, then the machine filter                 |
+| Esc                                             | Close                                                           |
 
-The popup's bottom line shows these keys for your platform. `@` and the machine column work only while another machine is connected; with none, `@` is just a letter.
+The popup's bottom line shows these keys for your platform. `@` and the machine column work only while another machine is connected; with none, `@` is just a letter. The Tab hint shows only when the selected row has worktrees.
 
 ## Settings
 
@@ -96,7 +98,7 @@ Without `roots`, Trailhead searches whichever of these exist: `~/code`, `~/proje
 
 ## What it reads and runs
 
-- **Reads:** `trailhead.json` (and `projects.json`, a legacy fallback) in Herdr's folder, the folder names under your roots, and the `.git` entries and reflogs of the repos it finds. Herdr lets mods read only inside your home folder.
+- **Reads:** `trailhead.json` (and `projects.json`, a legacy fallback) in Herdr's folder, the folder names under your roots, the `.git` entries and reflogs of the repos it finds, and the `HEAD` file that names each worktree's branch. Herdr lets mods read only inside your home folder.
 - **Runs:** `zoxide query -ls` once per open, when zoxide is installed. On Cmd+Enter, `command -v` (`where` on Windows) to check that the agent is installed. On each other machine, the `sh` script above.
 - **Asks Herdr to:** select a space, make a space or add a tab. Nothing else, and never to close anything.
 - **Stores:** your recent picks and the last list it found, in the mod's storage in Herdr's folder. It makes no network requests.

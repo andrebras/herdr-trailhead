@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Type `@` to show only one machine's projects: `@` lists the machines, `@dev` narrows them, and Space, Tab or Enter picks one. A click on a row's machine name does the same. The machine shows as a pill in the search field; Backspace in an empty search removes it. Only while another machine is connected.
+- A worktree shows its repo and its branch, such as `acme-web › fix-login`, on this computer and on other machines, and typing part of the branch finds it.
+- Tab on a repo that has worktrees, or on one of its worktrees, shows only that repo and its worktrees, with an `acme-web ›` pill in the search field. Backspace in an empty search removes it.
 
 ## [0.1.0] - 2026-11-27
 
