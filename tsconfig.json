@@ -20,6 +20,7 @@
     "mods/trailhead/keys.js",
     "mods/trailhead/spaces.js",
     "mods/trailhead/discover.js",
-    "mods/trailhead/recent.js"
+    "mods/trailhead/recent.js",
+    "mods/trailhead/filter.js"
   ]
 }
