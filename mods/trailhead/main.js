@@ -54,7 +54,17 @@ import { openSpaces, spaceFor, buildRows, onListedMachines, preparer, pathRows, 
 import { findProjects, lastChange, projectNames } from "./discover.js";
 import { readRecent, withPick } from "./recent.js";
 import { projectKey } from "./keys.js";
-import { LOCAL, isMachine, machineQuery, machineRows, typedMachine, onMachine } from "./filter.js";
+import {
+  LOCAL,
+  isMachine,
+  machineQuery,
+  machineRows,
+  typedMachine,
+  onMachine,
+  repoOf,
+  reposWithWorktrees,
+  inRepo,
+} from "./filter.js";
 
 /** @typedef {import("gpui-kit").AsyncContext} AsyncContext */
 /** @typedef {import("gpui-kit").Color} Color */
@@ -65,8 +75,9 @@ import { LOCAL, isMachine, machineQuery, machineRows, typedMachine, onMachine } 
 /** @typedef {ReturnType<typeof pathRows<ListRow>>[number]} Row a project, a space or a typed folder */
 /** @typedef {Row | import("./filter.js").MachineRow} Shown a row as shown: also a machine while "@" is typed */
 /** @typedef {{ sig: string, rows: ListRow[], index?: import("./match.js").RankIndex<ListRow>, scope?: string,
+ *   trees?: Set<string>,
  *   shown?: { filter: string, scope: string, rows: Shown[] } }} Built the rows, and what is worked out
- *   from them; `scope` is the filter they were worked out for */
+ *   from them; `scope` is the filter they were worked out for, `trees` the repos with worktrees */
 
 // How many matches show: the best ones, as a fuzzy finder does.
 const SHOWN = 12;
@@ -92,6 +103,8 @@ export default class Trailhead extends View {
   filter;
   /** @type {string | null} the machine the list is filtered to ("local" or a name), shown as a pill */
   machine;
+  /** @type {{ key: string, name: string } | null} the repo the list is narrowed to, with its worktrees */
+  repo;
   /** @type {number} the selected row's place */
   at;
   /** @type {string | null} the selected row's key, so it stays selected when the list updates */
@@ -135,6 +148,7 @@ export default class Trailhead extends View {
     this.filter = "";
     // Every open starts with no filter.
     this.machine = null;
+    this.repo = null;
     this.at = 0;
     this.selected = null;
     // The list from last time draws in the first frame; nothing is read from disk before it.
@@ -306,6 +320,26 @@ export default class Trailhead extends View {
    */
   lockMachine(machine, rest, cx) {
     this.machine = machine;
+    this.narrowed(rest, cx);
+  }
+
+  /**
+   * Narrows the list to a repo and its worktrees, shown as a pill before the input, which
+   * empties.
+   * @param {{ key: string, name: string }} repo
+   * @param {import("gpui-kit").Context} cx
+   */
+  lockRepo(repo, cx) {
+    this.repo = repo;
+    this.narrowed("", cx);
+  }
+
+  /**
+   * After a filter is added: the input keeps `rest`, and the first row is selected.
+   * @param {string} rest
+   * @param {import("gpui-kit").Context} cx
+   */
+  narrowed(rest, cx) {
     // Set here too: set_value may not report a change, and if it does, this one is done.
     this.filter = rest;
     this.problem = null;
@@ -327,6 +361,19 @@ export default class Trailhead extends View {
   }
 
   /**
+   * The repo Tab narrows the list to from this row: its repo, when that has worktrees in the
+   * list. Null when there is none, or the list is narrowed to a repo already.
+   * @param {Shown | undefined} r
+   */
+  worktreesOf(r) {
+    if (!r || isMachine(r) || isTyped(r) || this.repo !== null) return null;
+    const built = /** @type {Built} */ (this.built);
+    built.trees ??= reposWithWorktrees(built.rows);
+    const repo = repoOf(r);
+    return repo && built.trees.has(repo.key) ? repo : null;
+  }
+
+  /**
    * The rows to show, worked out once per list, filter and query: a render, a key and Enter
    * all ask.
    * @returns {Shown[]}
@@ -334,14 +381,14 @@ export default class Trailhead extends View {
   rows() {
     const rows = this.allRows();
     const built = /** @type {Built} */ (this.built);
-    const scope = this.machine ?? "";
+    const scope = `${this.machine ?? ""}|${this.repo?.key ?? ""}`;
     if (built.shown?.filter !== this.filter || built.shown.scope !== scope)
       built.shown = { filter: this.filter, scope, rows: this.pick(rows, built, scope) };
     return built.shown.rows;
   }
 
   /**
-   * A lone "@", the machines; else the machine filter's rows: with nothing typed, in the order
+   * A lone "@", the machines; else the rows the filters keep: with nothing typed, in the order
    * `ordered` explains (the previous project first); a typed path, that folder and what is
    * inside it; else the best matches first. The ranking index is built on the first key, once
    * per list and filter.
@@ -353,7 +400,8 @@ export default class Trailhead extends View {
   pick(all, built, scope) {
     const at = this.choosing();
     if (at !== null) return machineRows(this.machineNames(), at);
-    const rows = this.machine === null ? all : onMachine(all, this.machine);
+    const mine = this.machine === null ? all : onMachine(all, this.machine);
+    const rows = this.repo === null ? mine : inRepo(mine, this.repo.key);
     const typed = this.filter.trim();
     const f = typed.toLowerCase();
     if (!f) return ordered(rows, this.recent, this.current, SHOWN);
@@ -488,7 +536,8 @@ export default class Trailhead extends View {
       ? ["Enter go", "⌥Enter new space", `⌘Enter start ${agentName}`]
       : ["Enter go", "Alt+Enter new space", `Ctrl+Enter start ${agentName}`];
     if (machineColumn) footer.push("@ machine");
-    if (this.machine !== null) footer.push(mac ? "⌫ remove filter" : "Backspace remove filter");
+    if (this.worktreesOf(rows[this.at])) footer.push(mac ? "⇥ worktrees" : "Tab worktrees");
+    if (this.machine !== null || this.repo !== null) footer.push(mac ? "⌫ remove filter" : "Backspace remove filter");
     footer.push("Esc close");
     // The status dot: an open space in its agents' colour (accent with none), a typed folder +,
     // a machine @.
@@ -526,6 +575,9 @@ export default class Trailhead extends View {
               : div().flex_none().child(p.text),
           ),
         );
+    // A filter, before the input.
+    const pill = (/** @type {string} */ text) =>
+      div().flex_none().px(6).py(1).rounded(5).bg(t.hover).text_size(11.5).text_color(t.foreground).child(text);
     // A row's machine: a click on it filters the list to that machine.
     const machineCell = (/** @type {Shown} */ r, /** @type {number} */ i) => {
       const there = isMachine(r) ? null : ((isTyped(r) ? null : r.machine) ?? LOCAL);
@@ -599,16 +651,23 @@ export default class Trailhead extends View {
           this.choose(r, cx, { fresh: true });
           return;
         }
-        // Tab on a machine filters the list to it, as Enter and Space do.
+        // Tab on a machine filters the list to it, as Enter and Space do; on a repo with
+        // worktrees, or one of them, it narrows the list to that repo and its worktrees. Tab is
+        // kept either way, so it never moves the keyboard out of the input.
         const r = rows[this.at];
-        if (k === "tab" && r && isMachine(r)) {
+        if (k === "tab") {
           cx.stop_propagation();
-          return this.lockMachine(r.name, "", cx);
+          if (r && isMachine(r)) return this.lockMachine(r.name, "", cx);
+          const repo = this.worktreesOf(r);
+          if (repo) this.lockRepo(repo, cx);
+          return;
         }
-        // Backspace in an empty input removes the filter. "Empty" is the input as last drawn
-        // (`typedNow`), so deleting the last letter doesn't remove the filter too.
-        if (k === "backspace" && typedNow === "" && this.machine !== null) {
-          this.machine = null;
+        // Backspace in an empty input removes a filter: the repo first, then the machine.
+        // "Empty" is the input as last drawn (`typedNow`), so deleting the last letter doesn't
+        // remove a filter too.
+        if (k === "backspace" && typedNow === "" && (this.repo !== null || this.machine !== null)) {
+          if (this.repo !== null) this.repo = null;
+          else this.machine = null;
           this.at = 0;
           this.selected = null;
           cx.stop_propagation();
@@ -656,19 +715,8 @@ export default class Trailhead extends View {
           .border_color(t.accent)
           .bg(t.background)
           .child(svg("mods/trailhead/search.svg").size(15).text_color(t.dim))
-          .when(this.machine !== null, (el) =>
-            el.child(
-              div()
-                .flex_none()
-                .px(6)
-                .py(1)
-                .rounded(5)
-                .bg(t.hover)
-                .text_size(11.5)
-                .text_color(t.foreground)
-                .child(`@${this.machine}`),
-            ),
-          )
+          .when(this.machine !== null, (el) => el.child(pill(`@${this.machine}`)))
+          .when(this.repo !== null, (el) => el.child(pill(`${this.repo?.name} ›`)))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )
       .child(
