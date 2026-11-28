@@ -45,7 +45,7 @@ import {
   readTextFile,
 } from "herdr";
 import { makePaths } from "./paths.js";
-import { rankIndex, bestIn, ordered, age, positions, pieces, uniqueNames, zoxideBonus, keyOf } from "./match.js";
+import { rankIndex, bestIn, ordered, age, positions, pieces, zoxideBonus, keyOf } from "./match.js";
 import { keptText, readKept } from "./kept.js";
 import { loadSettings, DEFAULTS } from "./settings.js";
 import { command, installedCheck, checkedProgram } from "./actions.js";
@@ -251,7 +251,7 @@ export default class Trailhead extends View {
     const { home: there, found, unreadable } = parseFound(out.stdout);
     if (unreadable.length > 0) this.remoteProblems.set(name, `Can't read ${unreadable.join(", ")} on ${name}`);
     else this.remoteProblems.delete(name);
-    const names = uniqueNames(found.map((p) => ({ path: p.path, label: base(p.path) })));
+    const names = projectNames(found, base);
     const rows = found.map((p, i) => prepare({ ...p, name: names[i], machine: name, home: there, logs: null }));
     this.repos = [...(this.repos ?? []).filter((r) => r.machine !== name), ...rows];
     this.version++;
