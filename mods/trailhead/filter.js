@@ -1,5 +1,8 @@
-// The machine filter: typing "@" lists the machines, and picking one shows only its
-// projects. Knows nothing about Herdr, so tests can run it under node.
+// The filters above the list: a machine (typing "@" lists the machines, and picking one shows
+// only its projects) and a repo (Tab shows only a repo and its worktrees). Knows nothing about
+// Herdr, so tests can run it under node.
+
+import { projectKey } from "./keys.js";
 
 // What the filter calls this computer. A project here has no machine (null).
 export const LOCAL = "local";
@@ -66,4 +69,48 @@ export function typedMachine(text, names, selected) {
 export function onMachine(rows, machine) {
   const want = machine === LOCAL ? null : machine;
   return rows.filter((r) => (r.machine ?? null) === want);
+}
+
+/**
+ * A row as the repo filter sees it.
+ * @typedef {{ kind: string, path: string, repo?: string | null, machine?: string | null }} RepoRow
+ */
+
+/**
+ * The repo a row belongs to: a repo's own folder, a worktree's repo. `key` tells repos apart
+ * (its machine and folder); `name` is its folder's name, for the pill. Null for anything else,
+ * and for a worktree whose repo isn't known.
+ * @param {RepoRow} r
+ * @returns {{ key: string, name: string } | null}
+ */
+export function repoOf(r) {
+  const repo = r.kind === "repo" ? r.path : r.kind === "worktree" ? r.repo : null;
+  if (!repo) return null;
+  return { key: projectKey(r.machine, repo), name: repo.split(/[/\\]/).filter(Boolean).pop() ?? repo };
+}
+
+/**
+ * The keys of the repos that have a worktree in the list.
+ * @param {RepoRow[]} rows
+ * @returns {Set<string>}
+ */
+export function reposWithWorktrees(rows) {
+  /** @type {Set<string>} */
+  const keys = new Set();
+  for (const r of rows) {
+    const repo = r.kind === "worktree" ? repoOf(r) : null;
+    if (repo) keys.add(repo.key);
+  }
+  return keys;
+}
+
+/**
+ * A repo's rows: the repo itself and its worktrees.
+ * @template {RepoRow} R
+ * @param {R[]} rows
+ * @param {string} key the repo's key, from repoOf
+ * @returns {R[]}
+ */
+export function inRepo(rows, key) {
+  return rows.filter((r) => repoOf(r)?.key === key);
 }

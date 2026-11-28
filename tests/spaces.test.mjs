@@ -109,6 +109,12 @@ test("rows show paths with their own machine's home as ~", () => {
   assert.equal(prep(project("/srv/x", { machine: "devbox", home: null })).lpath, "/srv/x");
 });
 
+test("a space in a worktree keeps the worktree's repo, and its own name", () => {
+  const tree = project("/h/login", { kind: "worktree", repo: "/h/acme", branch: "fix-login" });
+  const [row] = rowsOf([space("s1", "/h/login")], [tree]);
+  assert.deepEqual([row.kind, row.repo, row.name], ["worktree", "/h/acme", "s1"]);
+});
+
 test("a worktree with a known branch shows and matches as its repo and branch", () => {
   const prep = preparer(makePaths("/Users/sam").short);
   const tree = { path: "/Users/sam/code/login", kind: "worktree", name: "acme-web/login" };
