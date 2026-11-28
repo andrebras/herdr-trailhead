@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A worktree shows its repo and its branch, such as `acme-web › fix-login`, on this computer and on other machines, and typing part of the branch finds it. Worktrees inside a repo or in hidden folders on this computer are listed too, from git's own record of them.
 - Tab on a repo that has worktrees, or on one of its worktrees, shows only that repo and its worktrees, with an `acme-web ›` pill in the search field: the repo first, then each worktree by its branch. Backspace in an empty search removes it.
 
+### Removed
+
+- `projects.json` is no longer read; settings live only in `trailhead.json` in Herdr's folder. The file only ever existed for a picker in a Herdr fork, which is gone.
+
 ## [0.1.0] - 2026-11-27
 
 The first release.
