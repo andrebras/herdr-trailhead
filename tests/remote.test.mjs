@@ -55,6 +55,8 @@ test("the find script prints a worktree's gitdir and branch, and skips a detache
       ["/code/old", null],
     ],
   );
+  // A relative gitdir ("../api/...") names the same repo as an absolute one.
+  assert.equal(trees[0].repo, join(home, "code/api"));
   assert.equal(trees[1].repo, join(home, "code/api"));
 });
 

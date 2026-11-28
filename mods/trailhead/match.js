@@ -359,12 +359,30 @@ export function uniqueNames(items) {
 
 /**
  * The repo folder a worktree belongs to, from its gitdir ("<repo>/.git/worktrees/<name>").
+ * A gitdir written relative to the worktree ("<worktree>/../acme/.git/...") gives the same
+ * folder as an absolute one, so the repo and its worktrees match.
  * @param {string} gitdir
  * @returns {string | null}
  */
 export function worktreeRepo(gitdir) {
   const m = /^(.*?)[/\\]\.git[/\\]worktrees[/\\][^/\\]+[/\\]?$/.exec(gitdir);
-  return m ? m[1] : null;
+  return m ? withoutDots(m[1]) : null;
+}
+
+/**
+ * A path with its "." and "name/.." parts taken out, in its own separator.
+ * @param {string} path
+ */
+function withoutDots(path) {
+  /** @type {string[]} */
+  const out = [];
+  for (const part of path.split(/[/\\]/)) {
+    const last = out[out.length - 1];
+    if (part === ".") continue;
+    if (part === ".." && last !== undefined && last !== "" && last !== "..") out.pop();
+    else out.push(part);
+  }
+  return out.join(path.includes("\\") ? "\\" : "/");
 }
 
 /**

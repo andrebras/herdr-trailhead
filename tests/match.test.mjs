@@ -156,6 +156,9 @@ test("worktreeRepo reads the repo folder from a worktree's gitdir", () => {
   assert.equal(worktreeRepo("/h/code/acme/.git/worktrees/login"), "/h/code/acme");
   assert.equal(worktreeRepo("C:\\code\\acme\\.git\\worktrees\\login"), "C:\\code\\acme");
   assert.equal(worktreeRepo("/h/elsewhere/gitdir"), null);
+  assert.equal(worktreeRepo("/h/code/login/../acme/.git/worktrees/login"), "/h/code/acme");
+  assert.equal(worktreeRepo("/h/code/login/./../../acme/.git/worktrees/login"), "/h/acme");
+  assert.equal(worktreeRepo("C:\\code\\login\\../acme/.git/worktrees/login"), "C:\\code\\acme");
 });
 
 test("headBranch reads the branch a HEAD file names, and none for a detached HEAD", () => {
