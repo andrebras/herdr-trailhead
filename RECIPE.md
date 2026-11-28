@@ -9,15 +9,16 @@ A popup for opening projects. Cmd+O opens it at the top of the window: a search 
 - **The popup:** an overlay at the top of the window, 40px down, 640px wide, at most 80% of the window's height. Background `popover`, padding 18px, 10px between its parts. Text 13px.
 - **Header:** "Open a project" (15px, semibold, `foreground`) on the left. A small "Esc" button on the right (11px, `dim`, 6x2px padding, radius 5) that turns `hover` with `foreground` text on hover and closes the popup.
 - **Error line:** shown only when something is wrong. One line, 11.5px, `blocked` colour, cut with an ellipsis. When there are several problems, it shows the first and "(and N more)".
-- **Search field:** 36px high, radius 9, 1px `accent` border, `background` fill. A 15px magnifier icon (`dim`) and the input (12.8px, `foreground`), placeholder "Open a project…".
+- **Search field:** 36px high, radius 9, 1px `accent` border, `background` fill. A 15px magnifier icon (`dim`), the machine pill while the list is filtered to one machine, and the input (12.8px, `foreground`), placeholder "Open a project…".
+- **Machine pill:** `@<machine>` (`@local`, `@devbox`), 11.5px, `foreground` on `hover`, 6x1px padding, radius 5.
 - **Rows:** at most 12. Each row is 34px high, radius 7, 4px side margin, 10px padding and 10px gaps. The selected row and a hovered row are filled with `hover`. Left to right:
-  - **Dot** (12px wide): `●` for an open space, coloured by its agent status. A typed path shows a `dim` `+`. Other rows show nothing.
+  - **Dot** (12px wide): `●` for an open space, coloured by its agent status. A typed path shows a `dim` `+`, a machine an `accent` `@`. Other rows show nothing.
   - **Name** (fills the space, `foreground`, cut when too long): the letters that match the query are semibold `accent`.
-  - **Machine** (80px, 11px, `muted`): the machine's name, or `local`. Present only while another machine is connected.
-  - **Kind** (72px, 11px, `muted`): `repo`, `worktree`, `folder`, `open folder` for a typed path, or `no such folder` in `blocked` colour. Blank for a space that matches no project.
+  - **Machine** (80px, 11px, `muted`, `foreground` on hover): the machine's name, or `local`. Present only while another machine is connected and the list isn't filtered to one machine. Blank on a machine row.
+  - **Kind** (72px, 11px, `muted`): `repo`, `worktree`, `folder`, `machine`, `open folder` for a typed path, or `no such folder` in `blocked` colour. Blank for a space that matches no project.
   - **Age** (36px, 11px, `dim`): `now`, `5m`, `3h`, `2d`, `3w`, `4mo` or `2y`. Blank when unknown.
-- **Empty list:** one 12px `dim` line: "Looking for projects…" before the first list exists, "No project matches. Type a path (~/code/app) to open any folder." when a query matches nothing, and "No projects found. Set "roots" in trailhead.json in Herdr's folder to the folders that hold them." otherwise.
-- **Footer:** 11px, `dim`. On macOS: `Enter go · ⌥Enter new space · ⌘Enter start <agent> · Esc close`. Elsewhere: `Alt+Enter` and `Ctrl+Enter` instead. `<agent>` is the last part of the agent program's path.
+- **Empty list:** one 12px `dim` line: "Looking for projects…" before the first list exists, "No machine's name starts with that." when `@` matches no machine, "No project matches. Type a path (~/code/app) to open any folder." when a query matches nothing, and "No projects found. Set "roots" in trailhead.json in Herdr's folder to the folders that hold them." otherwise.
+- **Footer:** 11px, `dim`. On macOS: `Enter go · ⌥Enter new space · ⌘Enter start <agent> · Esc close`. Elsewhere: `Alt+Enter` and `Ctrl+Enter` instead. `<agent>` is the last part of the agent program's path. Before `Esc close`: `@ machine` while the Machine column shows, and `⌫ remove filter` (`Backspace remove filter` elsewhere) while a machine pill shows.
 
 ## How it behaves
 
@@ -30,6 +31,7 @@ A popup for opening projects. Cmd+O opens it at the top of the window: a search 
 - **Alt+Enter or Shift+Enter:** make a new space even if one is open.
 - **Cmd+Enter (Ctrl+Enter on Linux and Windows):** first check that the agent program is installed on the project's machine. If not, the error line says "`<program>` isn't installed on this computer. Change "agent" in trailhead.json in Herdr's folder." and the popup stays open; typing clears the line. If so: add a tab running the agent to the open space, or make a new space whose first terminal runs it.
 - **A typed folder in the home folder that doesn't exist:** Enter does nothing, and its kind turns to `no such folder`.
+- **Machine filter:** only while another machine is connected. A lone `@` lists the machines as rows: `local` (this computer), then each machine Herdr lists that isn't `unavailable`. `@dev` keeps those whose name starts with `dev`, letter case ignored. Space, Tab or Enter on a machine row, or a click on it, filters the list to that machine: it shows as the pill, the typed `@dev ` leaves the input, and only that machine's rows show, ranked and ordered as usual, without the Machine column. Typing `@dev ` and more at once filters to the selected machine row when it matches, else the first that does, and keeps what follows the space. A click on a row's machine name filters the same way. Backspace in an input that was already empty removes the pill. Each open starts with no filter. With no other machine, `@` is typed text. While another machine is the filter, a typed path is matched as text, not opened as a folder.
 - **Keys:** ↑/↓ and Ctrl+P/Ctrl+N move the selection and wrap at both ends. Esc closes. Typing resets the selection to the first row.
 - **Live updates:** the kept list draws first. When the scan, the ages, zoxide or another machine's results arrive, the rows rebuild and the same row stays selected. Agent status changes redraw the dots.
 - **Never:** closes a space, creates a folder, or touches the network.
@@ -37,7 +39,7 @@ A popup for opening projects. Cmd+O opens it at the top of the window: a search 
 ## Built from
 
 - **Mod:** `mods/trailhead/` with `mod.json`: `place: "none"`, an overlay of kind `popup` at `top`, offset 40, width 640, height 0.8, and a palette entry "Open a project" (`mod.open {name: "trailhead"}`, words `folder repo git space sessionizer trailhead`). `keys.json` binds `cmd-o` to `mod.open:trailhead`.
-- **Files:** `main.js` (the view, the folder walk, spaces), and modules that import nothing from Herdr: `match.js` (scoring, order, ages, reflog times, highlights, unique names), `paths.js` (separators, `~`, home checks), `settings.js` (reading and checking `trailhead.json`), `kept.js` (the list kept between opens), `actions.js` (the command for each key, the installed check), `remote.js` (the other-machine script and its output), `spaces.js` (open spaces, which space a project has, the rows) and `keys.js` (the keys that tell rows apart). `search.svg` is the magnifier.
+- **Files:** `main.js` (the view, the folder walk, spaces), and modules that import nothing from Herdr: `match.js` (scoring, order, ages, reflog times, highlights, unique names), `paths.js` (separators, `~`, home checks), `settings.js` (reading and checking `trailhead.json`), `kept.js` (the list kept between opens), `actions.js` (the command for each key, the installed check), `remote.js` (the other-machine script and its output), `spaces.js` (open spaces, which space a project has, the rows), `keys.js` (the keys that tell rows apart) and `filter.js` (the machine filter: what `@` lists, and the rows of one machine). `search.svg` is the magnifier.
 - **Herdr functions:** `spaces`, `panes`, `machines`, `run`, `exec`, `theme`, `props`, `closeOverlay`, `home`, `appHome`, `checking`. Files through `fs/promises` (`readFile`, `readdir`). `platform` from `os` picks the footer.
 - **Commands:** `space.select {id}`, `space.new {folder, name, argv?, machine?}`, `tab.new {space, folder, argv}`.
 - **Settings:** `trailhead.json` in `appHome()`, keys `roots`, `depth` (1 to 6), `folders`, `agent` (a non-empty list of strings), `zoxide` (`"auto"` or `"off"`). Keys it lacks come from `projects.json` there, a legacy file. A bad value is reported and replaced by its default.
@@ -56,6 +58,9 @@ A popup for opening projects. Cmd+O opens it at the top of the window: a search 
 - Popups take the keyboard a moment after opening: focus the input again after 600ms, but not during `herdr-app check`.
 - Two spaces can share a folder, and a space can have no folder. Key space rows by machine and space id, project rows by machine and path, or the selection jumps between them.
 - Herdr's theme names (`popover`, `hover`, `accent`, `blocked` and so on) are the only colours. Nothing is hard-coded.
+- Keys reach the popup three ways: Enter as the input's submit, Space as a change to its text, and Tab and Backspace through the wrapper's `on_key_down`. Lock a machine in each. Decide that Backspace hit an empty input from the text as last drawn, not the input's value now, or deleting the last letter also removes the pill.
+- The shown rows and the ranking index depend on the machine filter as well as the query: work them out again when it changes.
+- A click on a row's machine name must stop there (`cx.stop_propagation()`), or the row's own click opens the project too.
 
 ## Done when
 
@@ -71,3 +76,4 @@ A popup for opening projects. Cmd+O opens it at the top of the window: a search 
 - `"depth": 9` shows an error line and searches 3 levels deep.
 - Typing `~/nowhere` and Enter shows `no such folder`, and nothing opens.
 - With a second machine connected, its projects show with its name in the Machine column, and Enter opens a space there.
+- With a second machine connected, typing `@dev ` shows a `@devbox` pill and only devbox's projects, without the Machine column; Backspace removes the pill. Typing `@` with no other machine connected just searches for `@`.

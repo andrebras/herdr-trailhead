@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Type `@` to show only one machine's projects: `@` lists the machines, `@dev` narrows them, and Space, Tab or Enter picks one. A click on a row's machine name does the same. The machine shows as a pill in the search field; Backspace in an empty search removes it. Only while another machine is connected.
+
 ## [0.1.0] - 2026-11-27
 
 The first release.

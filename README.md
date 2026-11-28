@@ -14,7 +14,7 @@ A project picker for the [Herdr](https://herdr.dev) desktop app. Press Cmd+O, ty
 - **Cmd+O, Enter jumps back.** With nothing typed, the project you were in before is selected.
 - **Cmd+Enter starts your agent there:** `claude`, unless you choose another.
 
-Each row shows its space's agent status, its kind and its last change. Projects on the other machines Herdr is connected to are listed too.
+Each row shows its space's agent status, its kind and its last change. Projects on the other machines Herdr is connected to are listed too: type `@` and pick a machine to see only its projects.
 
 [herdr-app-navigator](https://github.com/alizdavoodi/herdr-app-navigator) lists zoxide's folders, so it needs zoxide on each machine you want listed. [project-finder](https://github.com/mike-bronner/herdr-plugin-project-finder) makes Enter apply a set of ticks, which also closes the spaces you untick.
 
@@ -45,16 +45,19 @@ Herdr's command palette has it too, as "Open a project". If you set `HERDR_APP_H
 
 ## Keys
 
-| Key                                     | What it does                                               |
-| --------------------------------------- | ---------------------------------------------------------- |
-| Enter, or a click                       | Go to the project's space, or make one in its folder       |
-| Alt+Enter or Shift+Enter                | Make a new space there, even if one is open                |
-| Cmd+Enter (Ctrl+Enter on Linux/Windows) | Go there and start your agent, in a new tab or a new space |
-| ↑ ↓, Ctrl+P / Ctrl+N                    | Move the selection                                         |
-| Type a path, such as `~/code/app`       | List that folder first, so Enter opens a space there       |
-| Esc                                     | Close                                                      |
+| Key                                        | What it does                                                    |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| Enter, or a click                          | Go to the project's space, or make one in its folder            |
+| Alt+Enter or Shift+Enter                   | Make a new space there, even if one is open                     |
+| Cmd+Enter (Ctrl+Enter on Linux/Windows)    | Go there and start your agent, in a new tab or a new space      |
+| ↑ ↓, Ctrl+P / Ctrl+N                       | Move the selection                                              |
+| Type a path, such as `~/code/app`          | List that folder first, so Enter opens a space there            |
+| `@`, then Space, Tab or Enter on a machine | Show only that machine's projects (`@dev` narrows the machines) |
+| A click on a row's machine                 | Show only that machine's projects                               |
+| Backspace in an empty search               | Remove the machine filter                                       |
+| Esc                                        | Close                                                           |
 
-The popup's bottom line shows these keys for your platform.
+The popup's bottom line shows these keys for your platform. `@` and the machine column work only while another machine is connected; with none, `@` is just a letter.
 
 ## Settings
 

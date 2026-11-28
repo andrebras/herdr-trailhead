@@ -45,7 +45,7 @@ GitHub's CI cannot run `herdr-app check`, because Herdr is not installed there. 
 
 ## Tests
 
-`mods/trailhead/main.js` holds the view and everything that talks to Herdr. The other modules there import nothing from Herdr, so Node.js can test them: matching and order (`match.js`), paths (`paths.js`), settings (`settings.js`), the list kept between opens (`kept.js`), the commands each key sends (`actions.js`), the search on other machines (`remote.js`), open spaces and rows (`spaces.js`) and row keys (`keys.js`). Their tests are in `tests/`.
+`mods/trailhead/main.js` holds the view and everything that talks to Herdr. The other modules there import nothing from Herdr, so Node.js can test them: matching and order (`match.js`), paths (`paths.js`), settings (`settings.js`), the list kept between opens (`kept.js`), the commands each key sends (`actions.js`), the search on other machines (`remote.js`), open spaces and rows (`spaces.js`), row keys (`keys.js`) and the machine filter (`filter.js`). Their tests are in `tests/`.
 
 When you change one of these modules, add or update a test in the same pull request. A bug fix comes with a test that fails without the fix.
 
