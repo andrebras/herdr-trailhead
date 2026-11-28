@@ -366,3 +366,14 @@ export function worktreeRepo(gitdir) {
   const m = /^(.*?)[/\\]\.git[/\\]worktrees[/\\][^/\\]+[/\\]?$/.exec(gitdir);
   return m ? m[1] : null;
 }
+
+/**
+ * The branch a git HEAD file names ("ref: refs/heads/<branch>"), or null when it names none
+ * (a detached HEAD holds a commit instead).
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function headBranch(text) {
+  const m = /^ref: refs\/heads\/(.+?)\s*$/m.exec(text);
+  return m ? m[1] : null;
+}

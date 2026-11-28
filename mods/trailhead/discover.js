@@ -3,7 +3,7 @@
 // folders and it knows nothing about Herdr.
 
 import { presentRoots } from "./settings.js";
-import { reflogTime, uniqueNames, worktreeRepo } from "./match.js";
+import { headBranch, reflogTime, uniqueNames, worktreeRepo } from "./match.js";
 
 /**
  * How to read this computer's folders and files: Herdr's `fs/promises`, or node's in tests.
@@ -13,13 +13,13 @@ import { reflogTime, uniqueNames, worktreeRepo } from "./match.js";
  *   read: (path: string) => Promise<string> }} Files
  * @typedef {ReturnType<typeof import("./paths.js").makePaths>} Paths
  * @typedef {{ path: string, kind: "repo" | "worktree" | "folder", logs: string | null,
- *   repo?: string | null }} Found
+ *   repo?: string | null, branch?: string | null }} Found
  */
 
 /**
  * Every repo under the roots and each listed folder, as found: kind "repo" (a .git folder),
  * "worktree" (a .git file pointing at its repo's) or "folder"; `logs` is the reflog that says
- * when it last changed; `repo`, a worktree's repo. A repo's own folders aren't searched, so a
+ * when it last changed; `repo` and `branch`, a worktree's repo and branch. A repo's own folders aren't searched, so a
  * submodule or a vendored checkout inside it is left out, and neither are hidden folders and
  * node_modules. Also the roots that couldn't be read, in words for the error bar, and whether
  * the search stopped early because it had looked at `maxFolders` folders.
@@ -94,7 +94,8 @@ export async function findProjects({ roots, depth, folders }, defaultRoots, { fi
 }
 
 /**
- * A worktree's .git file says "gitdir: <its folder in the repo's .git>", where its reflog is.
+ * A worktree's .git file says "gitdir: <its folder in the repo's .git>", where its reflog and
+ * its HEAD (which names its branch) are.
  * @param {string} dir
  * @param {Files} files
  * @param {Paths} paths
@@ -106,7 +107,9 @@ async function worktree(dir, files, { join, isPath }) {
     const gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(text)?.[1];
     const abs = gitdir ? (isPath(gitdir) ? gitdir : join(dir, gitdir)) : null;
     const repo = abs ? worktreeRepo(abs) : null;
-    return { path: dir, kind: "worktree", repo, logs: abs ? join(join(abs, "logs"), "HEAD") : null };
+    const head = abs ? await files.read(join(abs, "HEAD")).catch(() => "") : "";
+    const logs = abs ? join(join(abs, "logs"), "HEAD") : null;
+    return { path: dir, kind: "worktree", repo, branch: headBranch(head), logs };
   } catch {
     return { path: dir, kind: "worktree", logs: null };
   }

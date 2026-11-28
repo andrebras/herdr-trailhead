@@ -12,6 +12,7 @@ import {
   pieces,
   uniqueNames,
   worktreeRepo,
+  headBranch,
   zoxideBonus,
 } from "../mods/trailhead/match.js";
 
@@ -155,6 +156,13 @@ test("worktreeRepo reads the repo folder from a worktree's gitdir", () => {
   assert.equal(worktreeRepo("/h/code/acme/.git/worktrees/login"), "/h/code/acme");
   assert.equal(worktreeRepo("C:\\code\\acme\\.git\\worktrees\\login"), "C:\\code\\acme");
   assert.equal(worktreeRepo("/h/elsewhere/gitdir"), null);
+});
+
+test("headBranch reads the branch a HEAD file names, and none for a detached HEAD", () => {
+  assert.equal(headBranch("ref: refs/heads/fix-login\n"), "fix-login");
+  assert.equal(headBranch("ref: refs/heads/feature/a b\n"), "feature/a b");
+  assert.equal(headBranch("3f2a1c0d9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f\n"), null);
+  assert.equal(headBranch(""), null);
 });
 
 test("a space where an agent is blocked ranks above other open spaces", () => {

@@ -39,6 +39,8 @@ test("finds repos and worktrees, not inside a repo, hidden folders or node_modul
     write("code/login/.git", "");
   });
   writeFileSync(join(home, "code/login/.git"), `gitdir: ${home}/code/api/.git/worktrees/login\n`);
+  mkdirSync(join(home, "code/api/.git/worktrees/login"), { recursive: true });
+  writeFileSync(join(home, "code/api/.git/worktrees/login/HEAD"), "ref: refs/heads/fix-login\n");
   const { found, unreadable, stopped } = await find(home, { roots: ["~/code"] });
   assert.deepEqual(
     found.map((p) => `${p.kind} ${p.path.slice(home.length)}`),
@@ -46,6 +48,7 @@ test("finds repos and worktrees, not inside a repo, hidden folders or node_modul
   );
   assert.equal(found[0].logs, join(home, "code/api/.git/logs/HEAD"));
   assert.equal(found[2].repo, join(home, "code/api"));
+  assert.equal(found[2].branch, "fix-login");
   assert.equal(found[2].logs, join(home, "code/api/.git/worktrees/login/logs/HEAD"));
   assert.deepEqual([unreadable, stopped], [[], false]);
 });

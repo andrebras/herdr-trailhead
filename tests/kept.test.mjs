@@ -6,13 +6,15 @@ test("the kept list reads back what was written, with times", () => {
   const projects = [
     { path: "/h/code/acme", kind: "repo", name: "acme", logs: "/h/code/acme/.git/logs/HEAD" },
     { path: "/srv/api", kind: "repo", name: "api", machine: "devbox" },
+    { path: "/h/code/login", kind: "worktree", name: "acme/login", repo: "/h/code/acme", branch: "fix-login" },
   ];
   const touched = new Map([
     ["/h/code/acme", 100],
     ["devbox:/srv/api", 200],
   ]);
   const back = readKept(keptText(projects, touched));
-  assert.equal(back?.length, 2);
+  assert.equal(back?.length, 3);
+  assert.equal(back?.[2].branch, "fix-login");
   assert.equal(back?.[0].touched, 100);
   assert.equal(back?.[1].machine, "devbox");
   assert.equal(back?.[1].touched, 200);
