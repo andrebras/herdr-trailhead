@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-28
+
 ### Added
 
 - Type `@` to show only one machine's projects: `@` lists the machines, `@dev` narrows them, and Space, Tab or Enter picks one. A click on a row's machine name does the same. The machine shows as a pill in the search field; Backspace in an empty search removes it. Only while another machine is connected.
@@ -37,5 +39,6 @@ The first release.
 - Without `roots`, the usual code folders you have are searched, such as `~/code` or `~/projects`, and the ones you don't have are skipped quietly.
 - One red line at the top of the popup for a bad setting, a root it can't read, another machine it couldn't search, or an agent that isn't installed.
 
-[Unreleased]: https://github.com/andrebras/herdr-trailhead/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/andrebras/herdr-trailhead/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/andrebras/herdr-trailhead/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/andrebras/herdr-trailhead/releases/tag/v0.1.0
