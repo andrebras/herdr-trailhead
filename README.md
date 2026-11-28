@@ -14,7 +14,7 @@ A project picker for the [Herdr](https://herdr.dev) desktop app. Press Cmd+O, ty
 - **Cmd+O, Enter jumps back.** With nothing typed, the project you were in before is selected.
 - **Cmd+Enter starts your agent there:** `claude`, unless you choose another.
 - **`@` shows one machine's projects.** With another machine connected, type `@`, pick a machine, and only its projects stay in the list.
-- **Worktrees show their branch.** A worktree reads `acme-web › fix-login`, and typing part of the branch finds it. Tab on it, or on its repo, lists only that repo and its worktrees.
+- **Worktrees show their branch.** A worktree reads `acme-web › fix-login`, and typing part of the branch finds it. Tab on it, or on its repo, lists only that repo and all its worktrees, even those inside the repo or in hidden folders.
 
 Each row shows its space's agent status, its kind and its last change. Projects on the other machines Herdr is connected to are listed too.
 
@@ -88,7 +88,7 @@ Without `roots`, Trailhead searches whichever of these exist: `~/code`, `~/proje
 
 ## How it works
 
-- **Finding.** It walks each root up to `depth` levels. A folder with a `.git` folder is a repo; one with a `.git` file is a worktree. It skips hidden folders and `node_modules`, never looks inside a repo, and stops after 5,000 folders.
+- **Finding.** It walks each root up to `depth` levels. A folder with a `.git` folder is a repo; one with a `.git` file is a worktree. It skips hidden folders and `node_modules`, never looks inside a repo, and stops after 5,000 folders. Then it reads git's own list of each repo's worktrees, which also finds those inside a repo or in a hidden folder.
 - **Last change.** The time of the last entry in the repo's reflog: a commit, checkout or pull.
 - **Opening.** The list from last time draws in the first frame. Then the folders are read again, and rows update in place without moving your selection.
 - **Order.** With nothing typed: the previous project, your open spaces, recent picks, then the rest by last change, and the current space last. Typed: a fuzzy match on the name, then on the path, with open spaces, recent picks and zoxide breaking ties. It shows the best 12 rows.
