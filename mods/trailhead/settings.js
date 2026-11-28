@@ -1,6 +1,5 @@
-// Trailhead's settings: trailhead.json in Herdr's folder, with projects.json there as a
-// fallback for the keys it doesn't set. Both sit outside the mod's own folder, so updating the
-// mod never resets them. Every problem found is reported in words for the error bar. Knows
+// Trailhead's settings: trailhead.json in Herdr's folder. It sits outside the mod's own
+// folder, so updating the mod never resets it. Every problem found is reported in words for the error bar. Knows
 // nothing about Herdr, so tests can run it under node.
 
 /** @typedef {{ roots: string[], depth: number, folders: string[], agent: string[], zoxide: "auto" | "off" }} Settings */
@@ -33,22 +32,19 @@ export const DEFAULTS = {
 /**
  * The settings, and what was wrong with them (the default is used for each bad value).
  * @param {string | null} trailheadJson trailhead.json in Herdr's folder, or null when absent
- * @param {string | null} projectsJson projects.json in Herdr's folder, or null when absent
  * `defaultRoots`: no valid "roots" was set, so the default roots are searched where they exist.
  * @returns {{ settings: Settings, problems: string[], defaultRoots: boolean }}
  */
-export function readSettings(trailheadJson, projectsJson) {
+export function readSettings(trailheadJson) {
   /** @type {string[]} */
   const problems = [];
   const own = parse(trailheadJson, "trailhead.json", problems);
-  const old = parse(projectsJson, "projects.json", problems);
   if (own !== undefined && !isObject(own)) {
     problems.push('trailhead.json must hold an object, such as {"agent": ["claude"]}');
   }
   const mine = isObject(own) ? own : {};
-  const fallback = isObject(old) ? old : {};
   /** @param {string} key */
-  const pick = (key) => (key in mine ? mine[key] : fallback[key]);
+  const pick = (key) => mine[key];
 
   const strings = (/** @type {unknown} */ v) =>
     Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && x.trim() !== "");
@@ -128,7 +124,7 @@ export function presentRoots(roots, names) {
 }
 
 /**
- * Reads and checks the settings: trailhead.json, then projects.json, both in Herdr's folder.
+ * Reads and checks the settings in trailhead.json in Herdr's folder.
  * `read` gives a file's text, null when it isn't there, and rejects when it can't be read:
  * a missing file means the defaults, one that can't be read is reported.
  * @param {(name: string) => Promise<string | null>} read
@@ -146,6 +142,6 @@ export async function loadSettings(read) {
       return null;
     }
   };
-  const result = readSettings(await text("trailhead.json"), await text("projects.json"));
+  const result = readSettings(await text("trailhead.json"));
   return { ...result, problems: [...unreadable, ...result.problems] };
 }

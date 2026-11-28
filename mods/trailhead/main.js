@@ -8,8 +8,8 @@
 // changed (its reflog's last entry: a commit, checkout or pull). A typed path to a folder
 // (~/code/foo) opens that folder. It never makes folders and never closes a space.
 //
-// Settings: trailhead.json in Herdr's folder, else projects.json there (never inside the
-// mod's folder, so an update can't reset them):
+// Settings: trailhead.json in Herdr's folder (never inside the mod's folder, so an update
+// can't reset them):
 //   { "roots": ["~/code"], "depth": 3, "folders": ["~/notes"], "agent": ["claude"], "zoxide": "auto" }
 // roots are searched for repos `depth` folders down; folders are listed as they are; agent
 // is what Cmd+Enter starts. Without "roots", the usual code folders (settings.js) are searched
