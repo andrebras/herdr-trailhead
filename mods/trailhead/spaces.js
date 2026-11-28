@@ -90,8 +90,9 @@ export function buildRows(open, projects, { machines, touched, sep, prepare }) {
   const up = new Set(machines.filter((m) => m.layout !== "unavailable").map((m) => m.name));
   const shown = projects.filter((p) => !p.machine || up.has(p.machine));
   const kindOf = new Map(shown.map((p) => [projectKey(p.machine, p.path), p.kind]));
-  // A space in a worktree belongs to the worktree's repo, for the repo filter.
-  const repoOf = new Map(shown.map((p) => [projectKey(p.machine, p.path), p.repo ?? null]));
+  // A space in a worktree belongs to the worktree's repo (for the repo filter) and shows its
+  // branch, as the worktree's own row does.
+  const treeOf = new Map(shown.map((p) => [projectKey(p.machine, p.path), { repo: p.repo, branch: p.branch }]));
   const homeOf = new Map(shown.filter((p) => p.machine).map((p) => [p.machine, p.home]));
   /** @type {(P & { space?: Space, pkey: string | null, touched: number | null })[]} */
   const rows = open.map(({ space, folders }) => {
@@ -101,8 +102,9 @@ export function buildRows(open, projects, { machines, touched, sep, prepare }) {
     const pkey = path ? projectKey(machine, path) : null;
     const kind = (pkey && kindOf.get(pkey)) || "space";
     const home = homeOf.get(machine) ?? null;
-    const repo = pkey ? (repoOf.get(pkey) ?? null) : null;
-    const row = prepare({ kind, name: space.name, path, machine, home, repo });
+    const tree = pkey ? treeOf.get(pkey) : undefined;
+    const repo = tree?.repo ?? null;
+    const row = prepare({ kind, name: space.name, path, machine, home, repo, branch: tree?.branch ?? null });
     // Keyed by its id, not its folder: two spaces can share a folder, or have none.
     return {
       ...row,
