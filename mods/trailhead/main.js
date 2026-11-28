@@ -54,6 +54,7 @@ import { openSpaces, spaceFor, buildRows, onListedMachines, preparer, pathRows, 
 import { findProjects, lastChange, projectNames } from "./discover.js";
 import { readRecent, withPick } from "./recent.js";
 import { projectKey } from "./keys.js";
+import { LOCAL, isMachine, machineQuery, machineRows, typedMachine, onMachine } from "./filter.js";
 
 /** @typedef {import("gpui-kit").AsyncContext} AsyncContext */
 /** @typedef {import("gpui-kit").Color} Color */
@@ -61,9 +62,11 @@ import { projectKey } from "./keys.js";
 /** @typedef {import("./kept.js").Project} Project */
 /** @typedef {Project & { key: string, lname: string, lpath: string }} Prepared a project ready for matching */
 /** @typedef {ReturnType<typeof buildRows<Prepared>>[number]} ListRow a project or an open space */
-/** @typedef {ReturnType<typeof pathRows<ListRow>>[number]} Row a row as shown: also a typed folder */
-/** @typedef {{ sig: string, rows: ListRow[], index?: import("./match.js").RankIndex<ListRow>,
- *   shown?: { filter: string, rows: Row[] } }} Built the rows, and what is worked out from them */
+/** @typedef {ReturnType<typeof pathRows<ListRow>>[number]} Row a project, a space or a typed folder */
+/** @typedef {Row | import("./filter.js").MachineRow} Shown a row as shown: also a machine while "@" is typed */
+/** @typedef {{ sig: string, rows: ListRow[], index?: import("./match.js").RankIndex<ListRow>, scope?: string,
+ *   shown?: { filter: string, scope: string, rows: Shown[] } }} Built the rows, and what is worked out
+ *   from them; `scope` is the filter they were worked out for */
 
 // How many matches show: the best ones, as a fuzzy finder does.
 const SHOWN = 12;
@@ -87,6 +90,8 @@ export default class Trailhead extends View {
   // declarations (undefined until then) never wipe what init() sets.
   /** @type {string} what is typed */
   filter;
+  /** @type {string | null} the machine the list is filtered to ("local" or a name), shown as a pill */
+  machine;
   /** @type {number} the selected row's place */
   at;
   /** @type {string | null} the selected row's key, so it stays selected when the list updates */
@@ -128,6 +133,8 @@ export default class Trailhead extends View {
    */
   init(_props, cx) {
     this.filter = "";
+    // Every open starts with no filter.
+    this.machine = null;
     this.at = 0;
     this.selected = null;
     // The list from last time draws in the first frame; nothing is read from disk before it.
@@ -156,7 +163,14 @@ export default class Trailhead extends View {
     this.recent = readRecent(storageGet(RECENT_KEY));
     this.input = InputState.new({ placeholder: "Open a project…" });
     this.input.on("change", (_e, cx) => {
-      this.filter = this.input.value();
+      const value = this.input.value();
+      // "@dev " with a space: filter by the machine selected in the list, else the first match.
+      if (this.machine === null && this.connected()) {
+        const was = this.rows()[this.at];
+        const typed = typedMachine(value, this.machineNames(), was && isMachine(was) ? was.name : null);
+        if (typed) return this.lockMachine(typed.machine, typed.rest, cx);
+      }
+      this.filter = value;
       this.problem = null;
       this.at = 0;
       this.selected = null;
@@ -167,7 +181,7 @@ export default class Trailhead extends View {
     this.input.on("submit", (e, cx) => {
       if (Date.now() - this.enterAt < SAME_PRESS_MS) return;
       const how = { agent: Boolean(e.secondary), fresh: Boolean(e.shift) };
-      cx.spawn((cx) => this.go(this.rows()[this.at], cx, how));
+      this.choose(this.rows()[this.at], cx, how);
     });
     this.input.focus();
     // Not while `herdr-app check` loads the mod, which reloads it and would strand the timer.
@@ -266,32 +280,90 @@ export default class Trailhead extends View {
     closeOverlay(props().overlay);
   }
 
+  // Whether another machine is connected. Only then does the Machine column show, and "@"
+  // filter by machine; with none, "@" is typed text.
+  connected() {
+    return machines().some((m) => m.name);
+  }
+
+  // The machines "@" offers: this computer as "local", then each one that can be reached.
+  machineNames() {
+    const names = machines().flatMap((m) => (m.name && m.layout !== "unavailable" ? [m.name] : []));
+    return [LOCAL, ...names];
+  }
+
+  // What follows a lone "@" while the machines are listed, or null when they aren't.
+  choosing() {
+    return this.machine === null && this.connected() ? machineQuery(this.filter) : null;
+  }
+
   /**
-   * The rows to show, worked out once per list and query: a render, a key and Enter all ask.
-   * @returns {Row[]}
+   * Filters the list to one machine, shown as a pill before the input, which keeps only
+   * what was typed after the machine's name.
+   * @param {string} machine
+   * @param {string} rest
+   * @param {import("gpui-kit").Context} cx
+   */
+  lockMachine(machine, rest, cx) {
+    this.machine = machine;
+    // Set here too: set_value may not report a change, and if it does, this one is done.
+    this.filter = rest;
+    this.problem = null;
+    this.at = 0;
+    this.selected = null;
+    if (this.input.value() !== rest) this.input.set_value(rest);
+    cx.notify();
+  }
+
+  /**
+   * Enter or a click on a row: a machine filters the list; anything else is opened.
+   * @param {Shown | undefined} r
+   * @param {import("gpui-kit").Context} cx
+   * @param {{ fresh?: boolean, agent?: boolean }} [how]
+   */
+  choose(r, cx, how = {}) {
+    if (r && isMachine(r)) return this.lockMachine(r.name, "", cx);
+    cx.spawn((cx) => this.go(r, cx, how));
+  }
+
+  /**
+   * The rows to show, worked out once per list, filter and query: a render, a key and Enter
+   * all ask.
+   * @returns {Shown[]}
    */
   rows() {
     const rows = this.allRows();
     const built = /** @type {Built} */ (this.built);
-    if (built.shown?.filter !== this.filter) built.shown = { filter: this.filter, rows: this.pick(rows, built) };
+    const scope = this.machine ?? "";
+    if (built.shown?.filter !== this.filter || built.shown.scope !== scope)
+      built.shown = { filter: this.filter, scope, rows: this.pick(rows, built, scope) };
     return built.shown.rows;
   }
 
   /**
-   * With nothing typed, in the order `ordered` explains (the previous project first); a typed
-   * path, that folder and what is inside it; else the best matches first. The ranking index
-   * is built on the first key, once per list.
-   * @param {ListRow[]} rows
+   * A lone "@", the machines; else the machine filter's rows: with nothing typed, in the order
+   * `ordered` explains (the previous project first); a typed path, that folder and what is
+   * inside it; else the best matches first. The ranking index is built on the first key, once
+   * per list and filter.
+   * @param {ListRow[]} all
    * @param {Built} built
-   * @returns {Row[]}
+   * @param {string} scope the filter, as rows() keys it
+   * @returns {Shown[]}
    */
-  pick(rows, built) {
+  pick(all, built, scope) {
+    const at = this.choosing();
+    if (at !== null) return machineRows(this.machineNames(), at);
+    const rows = this.machine === null ? all : onMachine(all, this.machine);
     const typed = this.filter.trim();
     const f = typed.toLowerCase();
     if (!f) return ordered(rows, this.recent, this.current, SHOWN);
-    if (isPath(typed)) return pathRows(rows, trim(expand(typed)), paths(), SHOWN);
+    // A typed path is a folder on this computer, so not while another machine is the filter.
+    const here = this.machine === null || this.machine === LOCAL;
+    if (here && isPath(typed)) return pathRows(rows, trim(expand(typed)), paths(), SHOWN);
     // The current space was only saved for jumping back; it gets no recent-pick bonus.
     const picks = this.recent.filter((k) => k !== this.current);
+    if (built.scope !== scope) built.index = undefined;
+    built.scope = scope;
     built.index ??= rankIndex(rows, short, picks, this.zoxide);
     return bestIn(built.index, f, SHOWN);
   }
@@ -391,22 +463,37 @@ export default class Trailhead extends View {
     if (was >= 0) this.at = was;
     this.at = Math.max(0, Math.min(this.at, rows.length - 1));
     this.selected = rows[this.at] ? keyOf(rows[this.at]) : null;
+    const choosing = this.choosing();
     const empty =
       this.repos === null
         ? "Looking for projects…"
-        : this.filter.trim()
-          ? "No project matches. Type a path (~/code/app) to open any folder."
-          : 'No projects found. Set "roots" in trailhead.json in Herdr\'s folder to the folders that hold them.';
+        : choosing !== null
+          ? "No machine's name starts with that."
+          : this.filter.trim()
+            ? "No project matches. Type a path (~/code/app) to open any folder."
+            : 'No projects found. Set "roots" in trailhead.json in Herdr\'s folder to the folders that hold them.';
     // The error bar: one line, the most recent problem first, with how many more there are.
     const errors = [this.problem, ...this.problems, ...this.remoteProblems.values()].filter((e) => e !== null);
-    // The Machine column shows only once another machine is connected.
-    const connected = machines().some((m) => m.name);
+    // The Machine column shows only once another machine is connected, and not while the list
+    // is filtered to one machine.
+    const connected = this.connected();
+    const machineColumn = connected && this.machine === null;
     const errorLine = errors.length > 1 ? `${errors[0]} (and ${errors.length - 1} more)` : (errors[0] ?? "");
     const agentName = base(this.settings.agent[0] ?? "agent");
     const missing = this.missing !== null && this.missing === this.filter.trim();
     const now = Date.now() / 1000;
-    // The status dot: an open space in its agents' colour (accent with none), a typed folder +.
-    const dot = (/** @type {Row} */ r) => {
+    const typedNow = this.filter;
+    const mac = platform() === "macos";
+    const footer = mac
+      ? ["Enter go", "⌥Enter new space", `⌘Enter start ${agentName}`]
+      : ["Enter go", "Alt+Enter new space", `Ctrl+Enter start ${agentName}`];
+    if (machineColumn) footer.push("@ machine");
+    if (this.machine !== null) footer.push(mac ? "⌫ remove filter" : "Backspace remove filter");
+    footer.push("Esc close");
+    // The status dot: an open space in its agents' colour (accent with none), a typed folder +,
+    // a machine @.
+    const dot = (/** @type {Shown} */ r) => {
+      if (isMachine(r)) return div().w(12).flex_none().text_color(t.accent).child("@");
       const status = isTyped(r) ? null : (r.space?.status ?? null);
       if (!isTyped(r) && r.space)
         return div()
@@ -420,11 +507,11 @@ export default class Trailhead extends View {
         .text_color(t.dim)
         .child(isTyped(r) ? "+" : "");
     };
-    const kindText = (/** @type {Row} */ r) =>
+    const kindText = (/** @type {Shown} */ r) =>
       isTyped(r) ? (missing ? "no such folder" : "open folder") : r.kind === "space" ? "" : r.kind;
     // The name, with the letters that match what you typed in the accent colour.
-    const typed = this.filter.trim().toLowerCase();
-    const name = (/** @type {Row} */ r) =>
+    const typed = (choosing ?? this.filter.trim()).toLowerCase();
+    const name = (/** @type {Shown} */ r) =>
       h_flex()
         .flex_1()
         .min_w(0)
@@ -437,7 +524,29 @@ export default class Trailhead extends View {
               : div().flex_none().child(p.text),
           ),
         );
-    const row = (/** @type {Row} */ r, /** @type {number} */ i) =>
+    // A row's machine: a click on it filters the list to that machine.
+    const machineCell = (/** @type {Shown} */ r, /** @type {number} */ i) => {
+      const there = isMachine(r) ? null : ((isTyped(r) ? null : r.machine) ?? LOCAL);
+      return div()
+        .id(`th-machine-${i}`)
+        .w(80)
+        .flex_none()
+        .truncate()
+        .text_size(11)
+        .text_color(t.muted)
+        .when(there !== null, (el) =>
+          el
+            .cursor_pointer()
+            .hover((s) => s.text_color(t.foreground))
+            .on_click((_e, cx) => {
+              // The row's own click would open the project.
+              cx.stop_propagation();
+              if (there !== null) this.lockMachine(there, "", cx);
+            }),
+        )
+        .child(there ?? "");
+    };
+    const row = (/** @type {Shown} */ r, /** @type {number} */ i) =>
       h_flex()
         .id(`th-${i}`)
         .mx(4)
@@ -449,20 +558,10 @@ export default class Trailhead extends View {
         .cursor_pointer()
         .when(i === this.at, (el) => el.bg(t.hover))
         .hover((s) => s.bg(t.hover))
-        .on_click((_e, cx) => cx.spawn((cx) => this.go(r, cx)))
+        .on_click((_e, cx) => this.choose(r, cx))
         .child(dot(r))
         .child(name(r))
-        .when(connected, (el) =>
-          el.child(
-            div()
-              .w(80)
-              .flex_none()
-              .truncate()
-              .text_size(11)
-              .text_color(t.muted)
-              .child((isTyped(r) ? null : r.machine) ?? "local"),
-          ),
-        )
+        .when(machineColumn, (el) => el.child(machineCell(r, i)))
         .child(
           div()
             .w(72)
@@ -495,7 +594,23 @@ export default class Trailhead extends View {
           this.enterAt = Date.now();
           const r = rows[this.at];
           cx.stop_propagation();
-          cx.spawn((cx) => this.go(r, cx, { fresh: true }));
+          this.choose(r, cx, { fresh: true });
+          return;
+        }
+        // Tab on a machine filters the list to it, as Enter and Space do.
+        const r = rows[this.at];
+        if (k === "tab" && r && isMachine(r)) {
+          cx.stop_propagation();
+          return this.lockMachine(r.name, "", cx);
+        }
+        // Backspace in an empty input removes the filter. "Empty" is the input as last drawn
+        // (`typedNow`), so deleting the last letter doesn't remove the filter too.
+        if (k === "backspace" && typedNow === "" && this.machine !== null) {
+          this.machine = null;
+          this.at = 0;
+          this.selected = null;
+          cx.stop_propagation();
+          cx.notify();
           return;
         }
         if (!rows.length) return;
@@ -539,6 +654,19 @@ export default class Trailhead extends View {
           .border_color(t.accent)
           .bg(t.background)
           .child(svg("mods/trailhead/search.svg").size(15).text_color(t.dim))
+          .when(this.machine !== null, (el) =>
+            el.child(
+              div()
+                .flex_none()
+                .px(6)
+                .py(1)
+                .rounded(5)
+                .bg(t.hover)
+                .text_size(11.5)
+                .text_color(t.foreground)
+                .child(`@${this.machine}`),
+            ),
+          )
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )
       .child(
@@ -548,17 +676,7 @@ export default class Trailhead extends View {
           .when(rows.length === 0, (el) => el.child(div().px(14).py(8).text_size(12).text_color(t.dim).child(empty)))
           .children(rows.map(row)),
       )
-      .child(
-        div()
-          .px(2)
-          .text_size(11)
-          .text_color(t.dim)
-          .child(
-            platform() === "macos"
-              ? `Enter go · ⌥Enter new space · ⌘Enter start ${agentName} · Esc close`
-              : `Enter go · Alt+Enter new space · Ctrl+Enter start ${agentName} · Esc close`,
-          ),
-      );
+      .child(div().px(2).text_size(11).text_color(t.dim).child(footer.join(" · ")));
   }
 }
 
