@@ -109,6 +109,16 @@ test("rows show paths with their own machine's home as ~", () => {
   assert.equal(prep(project("/srv/x", { machine: "devbox", home: null })).lpath, "/srv/x");
 });
 
+test("a worktree with a known branch shows and matches as its repo and branch", () => {
+  const prep = preparer(makePaths("/Users/sam").short);
+  const tree = { path: "/Users/sam/code/login", kind: "worktree", name: "acme-web/login" };
+  const known = prep({ ...tree, repo: "/Users/sam/code/acme-web", branch: "fix-login" });
+  assert.deepEqual([known.label, known.lname], ["acme-web › fix-login", "acme-web › fix-login"]);
+  assert.equal(known.name, "acme-web/login");
+  assert.equal(prep({ ...tree, repo: "/Users/sam/code/acme-web", branch: null }).label, "acme-web/login");
+  assert.equal(prep(project("/Users/sam/code/app", { branch: "main" })).label, "app");
+});
+
 test("a typed path shows that folder first, then the projects inside it", () => {
   const paths = makePaths("/Users/sam");
   const rows = [project("/Users/sam/code/app"), project("/Users/sam/code/web"), project("/Users/sam/notes")];

@@ -60,7 +60,7 @@ import { LOCAL, isMachine, machineQuery, machineRows, typedMachine, onMachine } 
 /** @typedef {import("gpui-kit").Color} Color */
 /** @typedef {import("./settings.js").Settings} Settings */
 /** @typedef {import("./kept.js").Project} Project */
-/** @typedef {Project & { key: string, lname: string, lpath: string }} Prepared a project ready for matching */
+/** @typedef {Project & { key: string, label: string, lname: string, lpath: string }} Prepared a project ready for matching */
 /** @typedef {ReturnType<typeof buildRows<Prepared>>[number]} ListRow a project or an open space */
 /** @typedef {ReturnType<typeof pathRows<ListRow>>[number]} Row a project, a space or a typed folder */
 /** @typedef {Row | import("./filter.js").MachineRow} Shown a row as shown: also a machine while "@" is typed */
@@ -509,8 +509,10 @@ export default class Trailhead extends View {
     };
     const kindText = (/** @type {Shown} */ r) =>
       isTyped(r) ? (missing ? "no such folder" : "open folder") : r.kind === "space" ? "" : r.kind;
-    // The name, with the letters that match what you typed in the accent colour.
+    // The name (a worktree's repo › branch), with the letters that match what you typed in the
+    // accent colour.
     const typed = (choosing ?? this.filter.trim()).toLowerCase();
+    const shownName = (/** @type {Shown} */ r) => (isTyped(r) || isMachine(r) ? r.name : r.label);
     const name = (/** @type {Shown} */ r) =>
       h_flex()
         .flex_1()
@@ -518,7 +520,7 @@ export default class Trailhead extends View {
         .overflow_hidden()
         .text_color(t.foreground)
         .children(
-          pieces(r.name, isTyped(r) ? [] : positions(typed, r.name)).map((p) =>
+          pieces(shownName(r), isTyped(r) ? [] : positions(typed, shownName(r))).map((p) =>
             p.hit
               ? div().flex_none().font_semibold().text_color(t.accent).child(p.text)
               : div().flex_none().child(p.text),

@@ -117,10 +117,22 @@ export function buildRows(open, projects, { machines, touched, sep, prepare }) {
 }
 
 /**
- * Makes projects ready for matching: each gets its project key, and its name and its path as
- * shown (home as ~, on its own machine) in lowercase, worked out once rather than per key.
+ * What a row shows as its name: a worktree with a known branch shows its repo and that branch
+ * ("acme-web › fix-login"); anything else, its name.
+ * @param {Project} p
+ */
+export function label(p) {
+  if (p.kind !== "worktree" || !p.repo || !p.branch) return p.name;
+  const repo = p.repo.split(/[/\\]/).filter(Boolean).pop() ?? p.repo;
+  return `${repo} › ${p.branch}`;
+}
+
+/**
+ * Makes projects ready for matching: each gets its project key, its label (see `label`), and
+ * its label and its path as shown (home as ~, on its own machine) in lowercase, worked out
+ * once rather than per key. The label is what is matched, so a worktree's branch is too.
  * @param {(path: string) => string} short this computer's path as shown
- * @returns {<T extends Project>(p: T) => T & { key: string, lname: string, lpath: string }}
+ * @returns {<T extends Project>(p: T) => T & { key: string, label: string, lname: string, lpath: string }}
  */
 export function preparer(short) {
   /** @type {Map<string, (path: string) => string>} */
@@ -133,12 +145,16 @@ export function preparer(short) {
     if (!s) there.set(p.home, (s = makePaths(p.home).short));
     return s(p.path);
   };
-  return (p) => ({
-    ...p,
-    key: projectKey(p.machine, p.path),
-    lname: p.name.toLowerCase(),
-    lpath: shown(p).toLowerCase(),
-  });
+  return (p) => {
+    const text = label(p);
+    return {
+      ...p,
+      key: projectKey(p.machine, p.path),
+      label: text,
+      lname: text.toLowerCase(),
+      lpath: shown(p).toLowerCase(),
+    };
+  };
 }
 
 /**
